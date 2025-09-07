@@ -1,9 +1,9 @@
 "use client";
 
-import { motion } from 'framer-motion';
-import { ArrowRight, Square, Crown, Timer } from 'lucide-react';
-import { useAppStore } from '@/lib/store';
-import { Card } from '@/components/ui/card';
+import { motion } from "framer-motion";
+import { ArrowRight, Square, Crown, Timer } from "lucide-react";
+import { useAppStore } from "@/lib/store";
+import { Card } from "@/components/ui/card";
 
 export default function NextSlidePreview() {
   const { nextSlide: nextSlideData } = useAppStore();
@@ -37,40 +37,40 @@ export default function NextSlidePreview() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
           >
-            <Card className="h-full bg-black/50 border-white/10 overflow-hidden">
-              <div className="h-full p-6 flex items-center justify-center">
-                {nextSlideData.type === 'image' && nextSlideData.imageUrl ? (
-                  <img
-                    src={nextSlideData.imageUrl}
-                    alt="Next slide content"
-                    className="max-w-full max-h-full object-contain opacity-75"
-                  />
-                ) : nextSlideData.type === 'countdown' && nextSlideData.countdown ? (
-                  <div className="text-center opacity-75">
-                    <Timer size={32} className="mx-auto mb-3 text-blue-400" />
-                    <p className="text-4xl font-bold text-white">
-                      {String(nextSlideData.countdown.minutes).padStart(2, '0')}:
-                      {String(nextSlideData.countdown.seconds).padStart(2, '0')}
-                    </p>
+            {/* 🔹 Fixed aspect ratio preview */}
+            <Card className="w-full aspect-video bg-black/50 border-white/10 flex items-center justify-center overflow-hidden">
+              {nextSlideData.type === "image" && nextSlideData.imageUrl ? (
+                <img
+                  src={nextSlideData.imageUrl}
+                  alt="Next slide content"
+                  className="max-w-full max-h-full object-contain opacity-75"
+                />
+              ) : nextSlideData.type === "countdown" &&
+                nextSlideData.countdown ? (
+                <div className="text-center opacity-75">
+                  <Timer size={32} className="mx-auto mb-3 text-blue-400" />
+                  <p className="text-4xl font-bold text-white">
+                    {String(nextSlideData.countdown.minutes).padStart(2, "0")}:
+                    {String(nextSlideData.countdown.seconds).padStart(2, "0")}
+                  </p>
+                </div>
+              ) : nextSlideData.type === "blank" ? (
+                <div className="text-center opacity-75">
+                  <Square size={32} className="mx-auto mb-3 text-gray-500" />
+                  <p className="text-gray-400">Blank Screen</p>
+                </div>
+              ) : nextSlideData.type === "logo" ? (
+                <div className="text-center opacity-75">
+                  <Crown size={32} className="mx-auto mb-3 text-yellow-400" />
+                  <p className="text-yellow-400">Church Logo</p>
+                </div>
+              ) : (
+                <div className="text-center opacity-75 px-4">
+                  <div className="text-white text-lg leading-relaxed whitespace-pre-wrap">
+                    {nextSlideData.content}
                   </div>
-                ) : nextSlideData.type === 'blank' ? (
-                  <div className="text-center opacity-75">
-                    <Square size={32} className="mx-auto mb-3 text-gray-500" />
-                    <p className="text-gray-400">Blank Screen</p>
-                  </div>
-                ) : nextSlideData.type === 'logo' ? (
-                  <div className="text-center opacity-75">
-                    <Crown size={32} className="mx-auto mb-3 text-yellow-400" />
-                    <p className="text-yellow-400">Church Logo</p>
-                  </div>
-                ) : (
-                  <div className="text-center opacity-75">
-                    <div className="text-white text-lg leading-relaxed whitespace-pre-wrap">
-                      {nextSlideData.content}
-                    </div>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
             </Card>
 
             {nextSlideData.notes && (
@@ -80,7 +80,9 @@ export default function NextSlidePreview() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.1 }}
               >
-                <p className="text-yellow-400/75 text-xs font-medium mb-1">Next Note:</p>
+                <p className="text-yellow-400/75 text-xs font-medium mb-1">
+                  Next Note:
+                </p>
                 <p className="text-white/75 text-xs">{nextSlideData.notes}</p>
               </motion.div>
             )}

@@ -294,6 +294,13 @@ export const useAppStore = create<AppStore>()(
 // 🔥 Listen for projector/control panel messages
 if (channel) {
   channel.onmessage = (event) => {
-    useAppStore.setState(event.data);
+    const data = event.data as Partial<AppState>;
+
+    // Only merge specific keys
+    useAppStore.setState((state) => ({
+      ...state,
+      ...data,
+      currentServicePlan: data.currentServicePlan || state.currentServicePlan,
+    }));
   };
 }
