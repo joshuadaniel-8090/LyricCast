@@ -1,4 +1,4 @@
-# Worship Presenter
+# LyricCast
 
 A modern, browser-based worship presentation application built with Next.js. This app replaces traditional PowerPoint presentations for church services with a streamlined, professional solution.
 

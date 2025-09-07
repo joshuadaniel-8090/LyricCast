@@ -5,7 +5,7 @@ import { Inter } from 'next/font/google';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Worship Presenter',
+  title: 'LyricCast',
   description: 'Professional presentation software for worship services',
 };
 
