@@ -24,6 +24,7 @@ interface AppStore extends AppState {
   toggleTimer: () => void;
   saveServicePlan: (plan: ServicePlan) => void;
   loadServicePlans: () => void;
+  deleteServicePlan: (planId: string) => void; // ✅ NEW
 }
 
 export const useAppStore = create<AppStore>()(
@@ -64,28 +65,46 @@ export const useAppStore = create<AppStore>()(
         set({
           servicePlans: updatedPlans,
           currentServicePlan: plan,
+          currentSlide: null, // reset slides
+          nextSlide: null,
+          showBlank: false,
+          showLogo: false,
+          showTimer: false,
         });
+
+        if (channel)
+          channel.postMessage({ currentSlide: null, nextSlide: null });
 
         return plan;
       },
 
       setCurrentServicePlan: (plan) => {
-        set({ currentServicePlan: plan });
-        if (plan && plan.items.length > 0) {
-          const firstSlide = plan.items[0]?.slides[0];
-          const secondSlide =
-            plan.items[0]?.slides[1] || plan.items[1]?.slides[0];
+        if (!plan || plan.items.length === 0) {
           set({
-            currentSlide: firstSlide || null,
-            nextSlide: secondSlide || null,
+            currentServicePlan: null,
+            currentSlide: null,
+            nextSlide: null,
           });
-          // 🔥 sync
           if (channel)
-            channel.postMessage({
-              currentSlide: firstSlide,
-              nextSlide: secondSlide,
-            });
+            channel.postMessage({ currentSlide: null, nextSlide: null });
+          return;
         }
+
+        const firstSlide = plan.items[0]?.slides[0] || null;
+        const secondSlide =
+          plan.items[0]?.slides[1] || plan.items[1]?.slides[0] || null;
+
+        set({
+          currentServicePlan: plan,
+          currentSlide: firstSlide,
+          nextSlide: secondSlide,
+        });
+
+        if (channel)
+          channel.postMessage({
+            currentSlide: firstSlide,
+            nextSlide: secondSlide,
+          });
       },
 
       addToServicePlan: (contentItem) => {
@@ -139,7 +158,6 @@ export const useAppStore = create<AppStore>()(
 
       setCurrentSlide: (slide) => {
         set({ currentSlide: slide });
-        // 🔥 sync
         if (channel) channel.postMessage({ currentSlide: slide });
       },
 
@@ -166,7 +184,6 @@ export const useAppStore = create<AppStore>()(
             nextSlide,
           });
 
-          // 🔥 sync
           if (channel) channel.postMessage({ currentSlide, nextSlide });
         }
       },
@@ -194,7 +211,6 @@ export const useAppStore = create<AppStore>()(
             nextSlide,
           });
 
-          // 🔥 sync
           if (channel) channel.postMessage({ currentSlide, nextSlide });
         }
       },
@@ -219,7 +235,6 @@ export const useAppStore = create<AppStore>()(
             nextSlide,
           });
 
-          // 🔥 sync
           if (channel) channel.postMessage({ currentSlide, nextSlide });
         }
       },
@@ -275,6 +290,26 @@ export const useAppStore = create<AppStore>()(
       loadServicePlans: () => {
         // Zustand persist handles rehydration automatically
       },
+
+      deleteServicePlan: (planId) => {
+        const { currentServicePlan, servicePlans } = get();
+        const updatedPlans = servicePlans.filter((p) => p.id !== planId);
+
+        let resetState: Partial<AppState> = { servicePlans: updatedPlans };
+
+        if (currentServicePlan?.id === planId) {
+          resetState = {
+            ...resetState,
+            currentServicePlan: null,
+            currentSlide: null,
+            nextSlide: null,
+          };
+          if (channel)
+            channel.postMessage({ currentSlide: null, nextSlide: null });
+        }
+
+        set(resetState);
+      },
     }),
     {
       name: "worship-app-storage",
@@ -296,7 +331,6 @@ if (channel) {
   channel.onmessage = (event) => {
     const data = event.data as Partial<AppState>;
 
-    // Only merge specific keys
     useAppStore.setState((state) => ({
       ...state,
       ...data,

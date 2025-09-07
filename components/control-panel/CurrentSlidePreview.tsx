@@ -201,7 +201,7 @@ export default function CurrentSlidePreview() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.1 }}
               >
-                <p className="text-yellow-400 text-sm font-medium mb-1">
+                <p className="text-yellow-200 text-sm font-medium mb-1">
                   Presenter Note:
                 </p>
                 <p className="text-white text-sm">{currentSlide.notes}</p>

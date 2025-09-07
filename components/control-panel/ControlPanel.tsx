@@ -16,7 +16,7 @@ export default function ControlPanel() {
       switch (event.key) {
         case "ArrowRight":
           event.preventDefault();
-          goToNextSlide(); // ✅ updated
+          goToNextSlide();
           break;
         case "ArrowLeft":
           event.preventDefault();
@@ -42,24 +42,27 @@ export default function ControlPanel() {
 
     window.addEventListener("keydown", handleKeyPress);
     return () => window.removeEventListener("keydown", handleKeyPress);
-  }, [goToNextSlide, previousSlide, toggleBlank, toggleLogo, toggleTimer]); // ✅ dependency updated
+  }, [goToNextSlide, previousSlide, toggleBlank, toggleLogo, toggleTimer]);
 
   return (
     <motion.div
-      className="h-full grid grid-cols-3 gap-6"
+      className="h-full grid grid-cols-[25rem_3fr_2fr] gap-2 px-6"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
-      <div className="col-span-1 h-full overflow-y-auto border-r pr-2">
+      {/* Slide Navigator */}
+      <div className="h-full overflow-y-auto">
         <SlideNavigator />
       </div>
 
-      <div className="col-span-1">
+      {/* Current Slide Preview */}
+      <div className="w-full">
         <CurrentSlidePreview />
       </div>
 
-      <div className="col-span-1">
+      {/* Next Slide Preview */}
+      <div className="w-full">
         <NextSlidePreview />
       </div>
     </motion.div>
