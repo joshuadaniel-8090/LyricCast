@@ -1,47 +1,48 @@
 "use client";
 
-import { useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { useAppStore } from '@/lib/store';
-import SlideNavigator from './SlideNavigator';
-import CurrentSlidePreview from './CurrentSlidePreview';
-import NextSlidePreview from './NextSlidePreview';
+import { useEffect } from "react";
+import { motion } from "framer-motion";
+import { useAppStore } from "@/lib/store";
+import SlideNavigator from "./SlideNavigator";
+import CurrentSlidePreview from "./CurrentSlidePreview";
+import NextSlidePreview from "./NextSlidePreview";
 
 export default function ControlPanel() {
-  const { nextSlide, previousSlide, toggleBlank, toggleLogo, toggleTimer } = useAppStore();
+  const { goToNextSlide, previousSlide, toggleBlank, toggleLogo, toggleTimer } =
+    useAppStore();
 
   useEffect(() => {
     const handleKeyPress = (event: KeyboardEvent) => {
       switch (event.key) {
-        case 'ArrowRight':
+        case "ArrowRight":
           event.preventDefault();
-          nextSlide();
+          goToNextSlide(); // ✅ updated
           break;
-        case 'ArrowLeft':
+        case "ArrowLeft":
           event.preventDefault();
           previousSlide();
           break;
-        case 'b':
-        case 'B':
+        case "b":
+        case "B":
           event.preventDefault();
           toggleBlank();
           break;
-        case 'l':
-        case 'L':
+        case "l":
+        case "L":
           event.preventDefault();
           toggleLogo();
           break;
-        case 't':
-        case 'T':
+        case "t":
+        case "T":
           event.preventDefault();
           toggleTimer();
           break;
       }
     };
 
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [nextSlide, previousSlide, toggleBlank, toggleLogo, toggleTimer]);
+    window.addEventListener("keydown", handleKeyPress);
+    return () => window.removeEventListener("keydown", handleKeyPress);
+  }, [goToNextSlide, previousSlide, toggleBlank, toggleLogo, toggleTimer]); // ✅ dependency updated
 
   return (
     <motion.div
@@ -50,14 +51,14 @@ export default function ControlPanel() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
-      <div className="col-span-1">
+      <div className="col-span-1 h-full overflow-y-auto border-r pr-2">
         <SlideNavigator />
       </div>
-      
+
       <div className="col-span-1">
         <CurrentSlidePreview />
       </div>
-      
+
       <div className="col-span-1">
         <NextSlidePreview />
       </div>

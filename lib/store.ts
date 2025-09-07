@@ -1,9 +1,13 @@
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { AppState, ServicePlan, ContentItem, Slide } from '@/types';
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+import { AppState, ServicePlan, ContentItem, Slide } from "@/types";
+
+// 🔥 Broadcast channel for syncing between control panel & projector
+const channel =
+  typeof window !== "undefined" ? new BroadcastChannel("worship-sync") : null;
 
 interface AppStore extends AppState {
-  setCurrentView: (view: 'files' | 'preview' | 'service-plan') => void;
+  setCurrentView: (view: "files" | "preview" | "service-plan") => void;
   setContent: (content: ContentItem[]) => void;
   createServicePlan: (title: string, date: string) => ServicePlan;
   setCurrentServicePlan: (plan: ServicePlan | null) => void;
@@ -11,7 +15,7 @@ interface AppStore extends AppState {
   removeFromServicePlan: (itemId: string) => void;
   reorderServicePlan: (fromIndex: number, toIndex: number) => void;
   setCurrentSlide: (slide: Slide | null) => void;
-  nextSlide: () => void;
+  goToNextSlide: () => void;
   previousSlide: () => void;
   goToSlide: (slideIndex: number) => void;
   toggleProjector: () => void;
@@ -25,7 +29,7 @@ interface AppStore extends AppState {
 export const useAppStore = create<AppStore>()(
   persist(
     (set, get) => ({
-      currentView: 'service-plan',
+      currentView: "service-plan",
       servicePlans: [],
       currentServicePlan: null,
       currentSlide: null,
@@ -49,16 +53,19 @@ export const useAppStore = create<AppStore>()(
           currentSlideIndex: 0,
           isActive: true,
         };
-        
+
         const { servicePlans } = get();
-        const updatedPlans = servicePlans.map(p => ({ ...p, isActive: false }));
+        const updatedPlans = servicePlans.map((p) => ({
+          ...p,
+          isActive: false,
+        }));
         updatedPlans.push(plan);
-        
-        set({ 
+
+        set({
           servicePlans: updatedPlans,
-          currentServicePlan: plan 
+          currentServicePlan: plan,
         });
-        
+
         return plan;
       },
 
@@ -66,11 +73,18 @@ export const useAppStore = create<AppStore>()(
         set({ currentServicePlan: plan });
         if (plan && plan.items.length > 0) {
           const firstSlide = plan.items[0]?.slides[0];
-          const secondSlide = plan.items[0]?.slides[1] || plan.items[1]?.slides[0];
-          set({ 
+          const secondSlide =
+            plan.items[0]?.slides[1] || plan.items[1]?.slides[0];
+          set({
             currentSlide: firstSlide || null,
-            nextSlide: secondSlide || null 
+            nextSlide: secondSlide || null,
           });
+          // 🔥 sync
+          if (channel)
+            channel.postMessage({
+              currentSlide: firstSlide,
+              nextSlide: secondSlide,
+            });
         }
       },
 
@@ -101,7 +115,7 @@ export const useAppStore = create<AppStore>()(
 
         const updatedPlan = {
           ...currentServicePlan,
-          items: currentServicePlan.items.filter(item => item.id !== itemId),
+          items: currentServicePlan.items.filter((item) => item.id !== itemId),
         };
 
         set({ currentServicePlan: updatedPlan });
@@ -123,15 +137,21 @@ export const useAppStore = create<AppStore>()(
         set({ currentServicePlan: updatedPlan });
       },
 
-      setCurrentSlide: (slide) => set({ currentSlide: slide }),
+      setCurrentSlide: (slide) => {
+        set({ currentSlide: slide });
+        // 🔥 sync
+        if (channel) channel.postMessage({ currentSlide: slide });
+      },
 
-      nextSlide: () => {
+      goToNextSlide: () => {
         const { currentServicePlan } = get();
         if (!currentServicePlan) return;
 
-        const allSlides = currentServicePlan.items.flatMap(item => item.slides);
-        const currentIndex = get().currentServicePlan?.currentSlideIndex || 0;
-        
+        const allSlides = currentServicePlan.items.flatMap(
+          (item) => item.slides
+        );
+        const currentIndex = currentServicePlan.currentSlideIndex || 0;
+
         if (currentIndex < allSlides.length - 1) {
           const nextIndex = currentIndex + 1;
           const currentSlide = allSlides[nextIndex];
@@ -145,6 +165,9 @@ export const useAppStore = create<AppStore>()(
             currentSlide,
             nextSlide,
           });
+
+          // 🔥 sync
+          if (channel) channel.postMessage({ currentSlide, nextSlide });
         }
       },
 
@@ -152,9 +175,11 @@ export const useAppStore = create<AppStore>()(
         const { currentServicePlan } = get();
         if (!currentServicePlan) return;
 
-        const allSlides = currentServicePlan.items.flatMap(item => item.slides);
-        const currentIndex = get().currentServicePlan?.currentSlideIndex || 0;
-        
+        const allSlides = currentServicePlan.items.flatMap(
+          (item) => item.slides
+        );
+        const currentIndex = currentServicePlan.currentSlideIndex || 0;
+
         if (currentIndex > 0) {
           const prevIndex = currentIndex - 1;
           const currentSlide = allSlides[prevIndex];
@@ -168,6 +193,9 @@ export const useAppStore = create<AppStore>()(
             currentSlide,
             nextSlide,
           });
+
+          // 🔥 sync
+          if (channel) channel.postMessage({ currentSlide, nextSlide });
         }
       },
 
@@ -175,7 +203,9 @@ export const useAppStore = create<AppStore>()(
         const { currentServicePlan } = get();
         if (!currentServicePlan) return;
 
-        const allSlides = currentServicePlan.items.flatMap(item => item.slides);
+        const allSlides = currentServicePlan.items.flatMap(
+          (item) => item.slides
+        );
         if (slideIndex >= 0 && slideIndex < allSlides.length) {
           const currentSlide = allSlides[slideIndex];
           const nextSlide = allSlides[slideIndex + 1] || null;
@@ -188,29 +218,51 @@ export const useAppStore = create<AppStore>()(
             currentSlide,
             nextSlide,
           });
+
+          // 🔥 sync
+          if (channel) channel.postMessage({ currentSlide, nextSlide });
         }
       },
 
       toggleProjector: () => {
         const isOpen = get().isProjectorOpen;
         if (isOpen) {
-          // Close projector window
           set({ isProjectorOpen: false });
         } else {
-          // Open projector window
-          window.open('/projector', 'projector', 'fullscreen=yes,scrollbars=no');
+          window.open(
+            "/projector",
+            "projector",
+            "fullscreen=yes,scrollbars=no"
+          );
           set({ isProjectorOpen: true });
         }
       },
 
-      toggleBlank: () => set(state => ({ showBlank: !state.showBlank })),
-      toggleLogo: () => set(state => ({ showLogo: !state.showLogo })),
-      toggleTimer: () => set(state => ({ showTimer: !state.showTimer })),
+      toggleBlank: () =>
+        set((state) => {
+          const showBlank = !state.showBlank;
+          if (channel) channel.postMessage({ showBlank });
+          return { showBlank };
+        }),
+
+      toggleLogo: () =>
+        set((state) => {
+          const showLogo = !state.showLogo;
+          if (channel) channel.postMessage({ showLogo });
+          return { showLogo };
+        }),
+
+      toggleTimer: () =>
+        set((state) => {
+          const showTimer = !state.showTimer;
+          if (channel) channel.postMessage({ showTimer });
+          return { showTimer };
+        }),
 
       saveServicePlan: (plan) => {
         const { servicePlans } = get();
-        const existingIndex = servicePlans.findIndex(p => p.id === plan.id);
-        
+        const existingIndex = servicePlans.findIndex((p) => p.id === plan.id);
+
         if (existingIndex >= 0) {
           const updatedPlans = [...servicePlans];
           updatedPlans[existingIndex] = plan;
@@ -221,16 +273,27 @@ export const useAppStore = create<AppStore>()(
       },
 
       loadServicePlans: () => {
-        // This will be called on app initialization
-        // Plans are automatically loaded from localStorage via persist middleware
+        // Zustand persist handles rehydration automatically
       },
     }),
     {
-      name: 'worship-app-storage',
+      name: "worship-app-storage",
       partialize: (state) => ({
         servicePlans: state.servicePlans,
         currentServicePlan: state.currentServicePlan,
+        currentSlide: state.currentSlide,
+        nextSlide: state.nextSlide,
+        showBlank: state.showBlank,
+        showLogo: state.showLogo,
+        showTimer: state.showTimer,
       }),
     }
   )
 );
+
+// 🔥 Listen for projector/control panel messages
+if (channel) {
+  channel.onmessage = (event) => {
+    useAppStore.setState(event.data);
+  };
+}

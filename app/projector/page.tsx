@@ -1,22 +1,21 @@
 "use client";
 
-import { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useAppStore } from '@/lib/store';
-import { Crown, Square, Timer } from 'lucide-react';
+import { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useAppStore } from "@/lib/store";
+import { Crown, Square, Timer } from "lucide-react";
 
 export default function ProjectorPage() {
-  const { 
-    currentSlide, 
-    showBlank, 
-    showLogo, 
-    showTimer 
-  } = useAppStore();
+  const { currentSlide, showBlank, showLogo, showTimer } = useAppStore();
 
-  const [countdown, setCountdown] = useState<{ minutes: number; seconds: number } | null>(null);
+  const [countdown, setCountdown] = useState<{
+    minutes: number;
+    seconds: number;
+  } | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
-    if (currentSlide?.type === 'countdown' && currentSlide.countdown) {
+    if (currentSlide?.type === "countdown" && currentSlide.countdown) {
       setCountdown(currentSlide.countdown);
     }
   }, [currentSlide]);
@@ -25,9 +24,9 @@ export default function ProjectorPage() {
     if (!countdown) return;
 
     const timer = setInterval(() => {
-      setCountdown(prev => {
+      setCountdown((prev) => {
         if (!prev) return null;
-        
+
         if (prev.seconds > 0) {
           return { ...prev, seconds: prev.seconds - 1 };
         } else if (prev.minutes > 0) {
@@ -41,31 +40,29 @@ export default function ProjectorPage() {
     return () => clearInterval(timer);
   }, [countdown]);
 
-  useEffect(() => {
-    // Request fullscreen on load
-    const enterFullscreen = async () => {
-      try {
-        if (document.documentElement.requestFullscreen) {
-          await document.documentElement.requestFullscreen();
-        }
-      } catch (error) {
-        console.log('Fullscreen not available:', error);
+  const enterFullscreen = async () => {
+    try {
+      if (document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen();
+        setIsFullscreen(true);
       }
-    };
+    } catch (error) {
+      console.log("Fullscreen not available:", error);
+    }
+  };
 
-    enterFullscreen();
-
-    // Handle ESC key to exit fullscreen
+  useEffect(() => {
     const handleKeyPress = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === "Escape") {
         if (document.fullscreenElement) {
           document.exitFullscreen();
+          setIsFullscreen(false);
         }
       }
     };
 
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
+    window.addEventListener("keydown", handleKeyPress);
+    return () => window.removeEventListener("keydown", handleKeyPress);
   }, []);
 
   const getSlideContent = () => {
@@ -117,7 +114,7 @@ export default function ProjectorPage() {
       );
     }
 
-    if (currentSlide.type === 'image' && currentSlide.imageUrl) {
+    if (currentSlide.type === "image" && currentSlide.imageUrl) {
       return (
         <motion.div
           key={currentSlide.id}
@@ -136,7 +133,7 @@ export default function ProjectorPage() {
       );
     }
 
-    if (currentSlide.type === 'video' && currentSlide.videoUrl) {
+    if (currentSlide.type === "video" && currentSlide.videoUrl) {
       return (
         <motion.div
           key={currentSlide.id}
@@ -157,7 +154,7 @@ export default function ProjectorPage() {
       );
     }
 
-    if (currentSlide.type === 'countdown') {
+    if (currentSlide.type === "countdown") {
       return (
         <motion.div
           key="countdown"
@@ -175,10 +172,11 @@ export default function ProjectorPage() {
               animate={{ scale: [1, 1.1, 1] }}
               transition={{ duration: 0.3 }}
             >
-              {countdown 
-                ? `${String(countdown.minutes).padStart(2, '0')}:${String(countdown.seconds).padStart(2, '0')}`
-                : '00:00'
-              }
+              {countdown
+                ? `${String(countdown.minutes).padStart(2, "0")}:${String(
+                    countdown.seconds
+                  ).padStart(2, "0")}`
+                : "00:00"}
             </motion.p>
           </div>
         </motion.div>
@@ -211,9 +209,18 @@ export default function ProjectorPage() {
 
   return (
     <div className="w-screen h-screen overflow-hidden bg-black">
-      <AnimatePresence mode="wait">
-        {getSlideContent()}
-      </AnimatePresence>
+      {!isFullscreen && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black z-50">
+          <button
+            onClick={enterFullscreen}
+            className="px-6 py-3 text-xl bg-blue-600 hover:bg-blue-500 rounded-lg shadow-lg"
+          >
+            Enter Fullscreen
+          </button>
+        </div>
+      )}
+
+      <AnimatePresence mode="wait">{getSlideContent()}</AnimatePresence>
 
       {showTimer && (
         <motion.div

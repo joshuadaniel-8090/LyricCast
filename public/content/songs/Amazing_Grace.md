@@ -7,9 +7,7 @@ That saved a wretch like me
 
 ---
 
-# Verse 2
-
-I once was lost, but now am found
+I once was lost, but now am found and thous
 Was blind, but now I see
 
 > NOTE: Full band enters here
