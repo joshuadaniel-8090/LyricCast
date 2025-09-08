@@ -46,12 +46,12 @@ export default function ControlPanel() {
 
   return (
     <motion.div
-      className="h-full grid grid-cols-[25rem_3fr_2fr] gap-2 px-6"
+      className="h-[58rem] grid grid-cols-[20rem_3fr_2fr] gap-2 px-6"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
-      {/* Slide Navigator */}
+      {/* Slide Navigator */} 
       <div className="h-full overflow-y-auto">
         <SlideNavigator />
       </div>

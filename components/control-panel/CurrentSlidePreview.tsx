@@ -2,7 +2,17 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Monitor, Square, Crown, Timer, Edit3, Save, X } from "lucide-react";
+import {
+  Monitor,
+  Square,
+  Crown,
+  Timer,
+  Edit3,
+  Save,
+  X,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,6 +29,8 @@ export default function CurrentSlidePreview() {
     toggleLogo,
     toggleTimer,
     isProjectorOpen,
+    goToNextSlide,
+    previousSlide,
   } = useAppStore();
 
   const [isEditing, setIsEditing] = useState(false);
@@ -30,7 +42,6 @@ export default function CurrentSlidePreview() {
   };
 
   const handleEditSave = () => {
-    // In a real app, this would update the slide content
     setIsEditing(false);
   };
 
@@ -49,7 +60,6 @@ export default function CurrentSlidePreview() {
       <div className="p-4 border-b border-white/10">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-white">Current Slide</h3>
-
           <div className="flex items-center gap-2">
             <Button
               size="sm"
@@ -61,7 +71,6 @@ export default function CurrentSlidePreview() {
             >
               <Monitor size={14} />
             </Button>
-
             <Button
               size="sm"
               variant="ghost"
@@ -73,53 +82,10 @@ export default function CurrentSlidePreview() {
             </Button>
           </div>
         </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={toggleBlank}
-            className={`${
-              showBlank
-                ? "bg-red-600/20 text-red-400"
-                : "text-white hover:bg-white/20"
-            }`}
-          >
-            <Square size={14} className="mr-1" />
-            Blank
-          </Button>
-
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={toggleLogo}
-            className={`${
-              showLogo
-                ? "bg-yellow-600/20 text-yellow-400"
-                : "text-white hover:bg-white/20"
-            }`}
-          >
-            <Crown size={14} className="mr-1" />
-            Logo
-          </Button>
-
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={toggleTimer}
-            className={`${
-              showTimer
-                ? "bg-blue-600/20 text-blue-400"
-                : "text-white hover:bg-white/20"
-            }`}
-          >
-            <Timer size={14} className="mr-1" />
-            Timer
-          </Button>
-        </div>
       </div>
 
-      <div className="flex-1 p-4">
+      {/* Slide content + notes + bottom buttons */}
+      <div className="flex-1 p-4 flex flex-col justify-between">
         {!currentSlide ? (
           <div className="h-full flex items-center justify-center text-gray-400">
             <div className="text-center">
@@ -129,83 +95,145 @@ export default function CurrentSlidePreview() {
           </div>
         ) : (
           <motion.div
-            className="h-full"
+            className="flex-1 flex flex-col justify-between"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
           >
-            <Card className="w-full aspect-video bg-black border-white/20 flex items-center justify-center overflow-hidden">
-              {isEditing ? (
-                <div className="w-full h-full p-4 flex flex-col">
-                  <Textarea
-                    value={editContent}
-                    onChange={(e) => setEditContent(e.target.value)}
-                    className="flex-1 bg-transparent border-none text-white resize-none focus:ring-0"
-                    placeholder="Edit slide content..."
-                  />
-                  <div className="flex justify-end gap-2 mt-4">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={handleEditCancel}
-                    >
-                      <X size={14} className="mr-1" />
-                      Cancel
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={handleEditSave}
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      <Save size={14} className="mr-1" />
-                      Save
-                    </Button>
+            {/* Card and notes */}
+            <div className="flex-1 flex flex-col gap-4">
+              <Card className="w-full aspect-video bg-black border-white/20 flex items-center justify-center overflow-hidden">
+                {isEditing ? (
+                  <div className="w-full h-full p-4 flex flex-col">
+                    <Textarea
+                      value={editContent}
+                      onChange={(e) => setEditContent(e.target.value)}
+                      className="flex-1 bg-transparent border-none text-white resize-none focus:ring-0"
+                      placeholder="Edit slide content..."
+                    />
+                    <div className="flex justify-end gap-2 mt-4">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={handleEditCancel}
+                      >
+                        <X size={14} className="mr-1" />
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleEditSave}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        <Save size={14} className="mr-1" />
+                        Save
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              ) : showBlank ? (
-                <div className="text-center">
-                  <Square size={48} className="mx-auto mb-4 text-gray-500" />
-                  <p className="text-gray-400">Blank Screen</p>
-                </div>
-              ) : showLogo ? (
-                <div className="text-center">
-                  <Crown size={48} className="mx-auto mb-4 text-yellow-400" />
-                  <p className="text-yellow-400">Church Logo</p>
-                </div>
-              ) : currentSlide.type === "image" && currentSlide.imageUrl ? (
-                <img
-                  src={currentSlide.imageUrl}
-                  alt="Slide content"
-                  className="max-w-full max-h-full object-contain"
-                />
-              ) : currentSlide.type === "countdown" &&
-                currentSlide.countdown ? (
-                <div className="text-center">
-                  <Timer size={48} className="mx-auto mb-4 text-blue-400" />
-                  <p className="text-6xl font-bold text-white">
-                    {String(currentSlide.countdown.minutes).padStart(2, "0")}:
-                    {String(currentSlide.countdown.seconds).padStart(2, "0")}
-                  </p>
-                </div>
-              ) : (
-                <div className="text-white text-2xl leading-relaxed whitespace-pre-wrap text-center max-w-full px-4">
-                  {currentSlide.content}
-                </div>
-              )}
-            </Card>
+                ) : showBlank ? (
+                  <div className="text-center">
+                    <Square size={48} className="mx-auto mb-4 text-gray-500" />
+                    <p className="text-gray-400">Blank Screen</p>
+                  </div>
+                ) : showLogo ? (
+                  <div className="text-center">
+                    <Crown size={48} className="mx-auto mb-4 text-yellow-400" />
+                    <p className="text-yellow-400">Church Logo</p>
+                  </div>
+                ) : currentSlide.type === "image" && currentSlide.imageUrl ? (
+                  <img
+                    src={currentSlide.imageUrl}
+                    alt="Slide content"
+                    className="max-w-full max-h-full object-contain"
+                  />
+                ) : currentSlide.type === "countdown" &&
+                  currentSlide.countdown ? (
+                  <div className="text-center">
+                    <Timer size={48} className="mx-auto mb-4 text-blue-400" />
+                    <p className="text-6xl font-bold text-white">
+                      {String(currentSlide.countdown.minutes).padStart(2, "0")}:
+                      {String(currentSlide.countdown.seconds).padStart(2, "0")}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-white text-2xl leading-relaxed whitespace-pre-wrap text-center max-w-full px-4">
+                    {currentSlide.content}
+                  </div>
+                )}
+              </Card>
 
-            {currentSlide.notes && !isEditing && (
-              <motion.div
-                className="mt-4 p-3 bg-yellow-600/10 border border-yellow-600/20 rounded-lg"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.1 }}
-              >
-                <p className="text-yellow-200 text-sm font-medium mb-1">
-                  Presenter Note:
-                </p>
-                <p className="text-white text-sm">{currentSlide.notes}</p>
-              </motion.div>
+              {/* Presenter Notes */}
+              {currentSlide.notes && !isEditing && (
+                <motion.div
+                  className="p-3 bg-yellow-600/10 border border-yellow-600/20 rounded-lg"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.1 }}
+                >
+                  <p className="text-yellow-200 text-sm font-medium mb-1">
+                    Presenter Note:
+                  </p>
+                  <p className="text-white text-sm">{currentSlide.notes}</p>
+                </motion.div>
+              )}
+            </div>
+
+            {/* Bottom Buttons */}
+            {!isEditing && (
+              <div className="absolute bottom-4 right-4 flex gap-3">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={toggleBlank}
+                  className={`w-16 h-16 rounded-full ${
+                    showBlank
+                      ? "bg-red-600/20 text-red-400"
+                      : "bg-white/10 text-white hover:bg-white/20"
+                  }`}
+                >
+                  <Square size={18} />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={toggleLogo}
+                  className={`w-16 h-16 rounded-full ${
+                    showLogo
+                      ? "bg-yellow-600/20 text-yellow-400"
+                      : "bg-white/10 text-white hover:bg-white/20"
+                  }`}
+                >
+                  <Crown size={18} />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={toggleTimer}
+                  className={`w-16 h-16 rounded-full ${
+                    showTimer
+                      ? "bg-blue-600/20 text-blue-400"
+                      : "bg-white/10 text-white hover:bg-white/20"
+                  }`}
+                >
+                  <Timer size={18} />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={previousSlide}
+                  className="w-16 h-16 rounded-full bg-white/10 hover:bg-white/20 text-white"
+                >
+                  <ChevronLeft size={20} />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={goToNextSlide}
+                  className="w-16 h-16 rounded-full bg-white/10 hover:bg-white/20 text-white"
+                >
+                  <ChevronRight size={20} />
+                </Button>
+              </div>
             )}
           </motion.div>
         )}

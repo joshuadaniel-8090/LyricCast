@@ -1,14 +1,21 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { AppState, ServicePlan, ContentItem, Slide } from "@/types";
+import {
+  AppState,
+  ServicePlan,
+  ContentTree,
+  Slide,
+  ContentItem,
+} from "@/types";
 
 // 🔥 Broadcast channel for syncing between control panel & projector
 const channel =
   typeof window !== "undefined" ? new BroadcastChannel("worship-sync") : null;
 
+// --- AppStore interface ---
 interface AppStore extends AppState {
   setCurrentView: (view: "files" | "preview" | "service-plan") => void;
-  setContent: (content: ContentItem[]) => void;
+  setContent: (content: ContentTree) => void;
   createServicePlan: (title: string, date: string) => ServicePlan;
   setCurrentServicePlan: (plan: ServicePlan | null) => void;
   addToServicePlan: (contentItem: ContentItem) => void;
@@ -24,9 +31,9 @@ interface AppStore extends AppState {
   toggleTimer: () => void;
   saveServicePlan: (plan: ServicePlan) => void;
   loadServicePlans: () => void;
-  deleteServicePlan: (planId: string) => void; // ✅ NEW
 }
 
+// --- Zustand store ---
 export const useAppStore = create<AppStore>()(
   persist(
     (set, get) => ({
@@ -35,15 +42,18 @@ export const useAppStore = create<AppStore>()(
       currentServicePlan: null,
       currentSlide: null,
       nextSlide: null,
-      content: [],
+      content: {
+        songs: {},
+        verses: {},
+        "custom-templates": {},
+      }, // ✅ Correctly typed ContentTree object
       isProjectorOpen: false,
       showBlank: false,
       showLogo: false,
       showTimer: false,
 
       setCurrentView: (view) => set({ currentView: view }),
-
-      setContent: (content) => set({ content }),
+      setContent: (content: ContentTree) => set({ content }),
 
       createServicePlan: (title, date) => {
         const plan: ServicePlan = {
@@ -65,7 +75,7 @@ export const useAppStore = create<AppStore>()(
         set({
           servicePlans: updatedPlans,
           currentServicePlan: plan,
-          currentSlide: null, // reset slides
+          currentSlide: null,
           nextSlide: null,
           showBlank: false,
           showLogo: false,
@@ -79,9 +89,20 @@ export const useAppStore = create<AppStore>()(
       },
 
       setCurrentServicePlan: (plan) => {
-        if (!plan || plan.items.length === 0) {
+        if (!plan) {
           set({
             currentServicePlan: null,
+            currentSlide: null,
+            nextSlide: null,
+          });
+          if (channel)
+            channel.postMessage({ currentSlide: null, nextSlide: null });
+          return;
+        }
+
+        if (plan.items.length === 0) {
+          set({
+            currentServicePlan: plan,
             currentSlide: null,
             nextSlide: null,
           });
@@ -120,24 +141,26 @@ export const useAppStore = create<AppStore>()(
           order: currentServicePlan.items.length,
         };
 
-        const updatedPlan = {
-          ...currentServicePlan,
-          items: [...currentServicePlan.items, planItem],
-        };
-
-        set({ currentServicePlan: updatedPlan });
+        set({
+          currentServicePlan: {
+            ...currentServicePlan,
+            items: [...currentServicePlan.items, planItem],
+          },
+        });
       },
 
       removeFromServicePlan: (itemId) => {
         const { currentServicePlan } = get();
         if (!currentServicePlan) return;
 
-        const updatedPlan = {
-          ...currentServicePlan,
-          items: currentServicePlan.items.filter((item) => item.id !== itemId),
-        };
-
-        set({ currentServicePlan: updatedPlan });
+        set({
+          currentServicePlan: {
+            ...currentServicePlan,
+            items: currentServicePlan.items.filter(
+              (item) => item.id !== itemId
+            ),
+          },
+        });
       },
 
       reorderServicePlan: (fromIndex, toIndex) => {
@@ -148,12 +171,12 @@ export const useAppStore = create<AppStore>()(
         const [movedItem] = items.splice(fromIndex, 1);
         items.splice(toIndex, 0, movedItem);
 
-        const updatedPlan = {
-          ...currentServicePlan,
-          items: items.map((item, index) => ({ ...item, order: index })),
-        };
-
-        set({ currentServicePlan: updatedPlan });
+        set({
+          currentServicePlan: {
+            ...currentServicePlan,
+            items: items.map((item, index) => ({ ...item, order: index })),
+          },
+        });
       },
 
       setCurrentSlide: (slide) => {
@@ -241,9 +264,8 @@ export const useAppStore = create<AppStore>()(
 
       toggleProjector: () => {
         const isOpen = get().isProjectorOpen;
-        if (isOpen) {
-          set({ isProjectorOpen: false });
-        } else {
+        if (isOpen) set({ isProjectorOpen: false });
+        else {
           window.open(
             "/projector",
             "projector",
@@ -290,26 +312,6 @@ export const useAppStore = create<AppStore>()(
       loadServicePlans: () => {
         // Zustand persist handles rehydration automatically
       },
-
-      deleteServicePlan: (planId) => {
-        const { currentServicePlan, servicePlans } = get();
-        const updatedPlans = servicePlans.filter((p) => p.id !== planId);
-
-        let resetState: Partial<AppState> = { servicePlans: updatedPlans };
-
-        if (currentServicePlan?.id === planId) {
-          resetState = {
-            ...resetState,
-            currentServicePlan: null,
-            currentSlide: null,
-            nextSlide: null,
-          };
-          if (channel)
-            channel.postMessage({ currentSlide: null, nextSlide: null });
-        }
-
-        set(resetState);
-      },
     }),
     {
       name: "worship-app-storage",
@@ -326,11 +328,10 @@ export const useAppStore = create<AppStore>()(
   )
 );
 
-// 🔥 Listen for projector/control panel messages
+// 🔥 Broadcast listener
 if (channel) {
   channel.onmessage = (event) => {
     const data = event.data as Partial<AppState>;
-
     useAppStore.setState((state) => ({
       ...state,
       ...data,

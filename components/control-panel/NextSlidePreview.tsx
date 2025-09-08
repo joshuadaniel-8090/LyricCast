@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 
 export default function NextSlidePreview() {
   const { nextSlide: nextSlideData } = useAppStore();
+  const { currentSlide } = useAppStore();
 
   return (
     <motion.div

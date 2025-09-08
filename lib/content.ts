@@ -1,109 +1,87 @@
-import { ContentItem } from '@/types';
-import { parseMarkdownToSlides, extractTitle } from './markdown';
+import fs from "fs";
+import path from "path";
+import { ContentItem, ContentTree } from "@/types";
+import { parseMarkdownToSlides, extractTitle } from "./markdown";
 
-export async function loadContent(): Promise<ContentItem[]> {
-  const content: ContentItem[] = [];
-  
-  try {
-    // Load songs
-    const songFiles = [
-      'Amazing_Grace.md',
-      'How_Great_Thou_Art.md',
-      'Holy_Holy_Holy.md',
-    ];
+// Recursively read all .md files from a folder and keep relative paths
+function getMarkdownFiles(folder: string): string[] {
+  const dirPath = path.join(process.cwd(), "public", "content", folder);
+  if (!fs.existsSync(dirPath)) return [];
 
-    for (const filename of songFiles) {
-      try {
-        const response = await fetch(`/content/songs/${filename}`);
-        if (response.ok) {
-          const text = await response.text();
-          const title = extractTitle(text);
-          const slides = parseMarkdownToSlides(text);
-          
-          content.push({
-            id: `song-${filename}`,
-            title,
-            type: 'song',
-            filename,
-            content: text,
-            slides,
-          });
-        }
-      } catch (error) {
-        console.error(`Error loading song ${filename}:`, error);
-      }
-    }
-
-    // Load verses
-    const verseFiles = [
-      'John_3_16.md',
-      'Psalm_23.md',
-      'Romans_8_28.md',
-    ];
-
-    for (const filename of verseFiles) {
-      try {
-        const response = await fetch(`/content/verses/${filename}`);
-        if (response.ok) {
-          const text = await response.text();
-          const title = extractTitle(text);
-          const slides = parseMarkdownToSlides(text);
-          
-          content.push({
-            id: `verse-${filename}`,
-            title,
-            type: 'verse',
-            filename,
-            content: text,
-            slides,
-          });
-        }
-      } catch (error) {
-        console.error(`Error loading verse ${filename}:`, error);
-      }
-    }
-
-    // Load custom templates
-    const templateFiles = [
-      'Welcome.md',
-      'Announcements.md',
-      'Offering.md',
-    ];
-
-    for (const filename of templateFiles) {
-      try {
-        const response = await fetch(`/content/custom-templates/${filename}`);
-        if (response.ok) {
-          const text = await response.text();
-          const title = extractTitle(text);
-          const slides = parseMarkdownToSlides(text);
-          
-          content.push({
-            id: `template-${filename}`,
-            title,
-            type: 'custom-template',
-            filename,
-            content: text,
-            slides,
-          });
-        }
-      } catch (error) {
-        console.error(`Error loading template ${filename}:`, error);
-      }
-    }
-  } catch (error) {
-    console.error('Error loading content:', error);
+  function walkDir(currentPath: string): string[] {
+    return fs
+      .readdirSync(currentPath, { withFileTypes: true })
+      .flatMap((entry) => {
+        const fullPath = path.join(currentPath, entry.name);
+        if (entry.isDirectory()) return walkDir(fullPath);
+        else if (entry.isFile() && entry.name.endsWith(".md"))
+          return [path.relative(dirPath, fullPath).split(path.sep).join("/")]; // normalize slashes
+        return [];
+      });
   }
 
-  return content;
+  return walkDir(dirPath);
 }
 
-export function createFileTree(content: ContentItem[]) {
-  const tree = {
-    songs: content.filter(item => item.type === 'song'),
-    verses: content.filter(item => item.type === 'verse'),
-    customTemplates: content.filter(item => item.type === 'custom-template'),
-  };
+// Convert flat file list into nested folder tree
+function buildTree(
+  files: string[],
+  type: ContentItem["type"],
+  baseFolder: string
+) {
+  const tree: any = {};
+
+  files.forEach((file) => {
+    const parts = file.split("/"); // always use forward slash
+    let current = tree;
+
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      if (i === parts.length - 1) {
+        // This is a file
+        const fullPath = path.join(
+          process.cwd(),
+          "public",
+          "content",
+          baseFolder,
+          ...parts
+        );
+        const text = fs.readFileSync(fullPath, "utf-8");
+        const title = extractTitle(text);
+        const slides = parseMarkdownToSlides(text);
+
+        if (!current.files) current.files = [];
+        current.files.push({
+          id: `${type}-${file.replace(/\//g, "-")}`,
+          title,
+          type,
+          filename: file,
+          content: text,
+          slides,
+        });
+      } else {
+        // Folder
+        if (!current[part]) current[part] = {};
+        current = current[part];
+      }
+    }
+  });
 
   return tree;
+}
+
+export async function loadContent(): Promise<ContentTree> {
+  const songFiles = getMarkdownFiles("songs");
+  const verseFiles = getMarkdownFiles("verses");
+  const templateFiles = getMarkdownFiles("custom-templates");
+
+  return {
+    songs: buildTree(songFiles, "song", "songs"),
+    verses: buildTree(verseFiles, "verse", "verses"),
+    "custom-templates": buildTree(
+      templateFiles,
+      "custom-template",
+      "custom-templates"
+    ),
+  };
 }
