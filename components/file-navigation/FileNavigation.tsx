@@ -1,14 +1,13 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { Search, Plus, Folder, Music, Book, Layout } from "lucide-react";
+import { Search, Folder, Music, Book, Layout } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { ContentItem } from "@/types";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-// Map types to icons and colors
+// Map content types to icons and colors
 const typeIcons = { song: Music, verse: Book, "custom-template": Layout };
 const typeColors = {
   song: "text-blue-400",
@@ -16,12 +15,12 @@ const typeColors = {
   "custom-template": "text-purple-400",
 };
 
-// Recursive search filter for FolderNode structure
+// Recursive filter function
 function filterTree(
   node: any,
   query: string,
   expanded: Set<string>,
-  parentPath: string = ""
+  path = ""
 ): any {
   if (!node) return null;
 
@@ -29,8 +28,7 @@ function filterTree(
     const matchedFiles = node.filter((item) =>
       item.title.toLowerCase().includes(query.toLowerCase())
     );
-    if (matchedFiles.length) return matchedFiles;
-    return null;
+    return matchedFiles.length ? matchedFiles : null;
   }
 
   const result: any = {};
@@ -44,16 +42,12 @@ function filterTree(
       if (matchedFiles.length) {
         result.files = matchedFiles;
         hasMatch = true;
-        expanded.add(parentPath); // expand parent folder
+        expanded.add(path);
       }
     } else {
-      const subPath = parentPath ? `${parentPath}/${key}` : key;
+      const subPath = path ? `${path}/${key}` : key;
       const filteredSub = filterTree(value, query, expanded, subPath);
-      if (
-        filteredSub &&
-        (Object.keys(filteredSub).length > 0 ||
-          (filteredSub.files?.length ?? 0))
-      ) {
+      if (filteredSub) {
         result[key] = filteredSub;
         hasMatch = true;
         expanded.add(subPath);
@@ -72,6 +66,7 @@ function FolderRenderer({
   toggleFolder,
   handleAdd,
   path = "",
+  firstMatchRef,
 }: {
   folderName: string;
   items: any;
@@ -79,6 +74,7 @@ function FolderRenderer({
   toggleFolder: (folderId: string) => void;
   handleAdd: (item: ContentItem) => void;
   path?: string;
+  firstMatchRef: React.MutableRefObject<HTMLDivElement | null>;
 }) {
   const fullPath = path ? `${path}/${folderName}` : folderName;
   const isExpanded = expandedFolders.has(fullPath);
@@ -119,33 +115,28 @@ function FolderRenderer({
         className="overflow-hidden"
       >
         <div className="ml-6 mt-2 space-y-2">
-          {files.map((item) => {
+          {files.map((item, idx) => {
             const Icon = typeIcons[item.type as keyof typeof typeIcons];
             const colorClass = typeColors[item.type as keyof typeof typeColors];
+
+            // Attach ref to first matching file for scrolling
+            const ref =
+              idx === 0 && !firstMatchRef.current ? firstMatchRef : undefined;
 
             return (
               <motion.div
                 key={item.id}
-                className="flex items-center justify-between p-3 rounded-lg bg-black/20 hover:bg-black/30 transition-colors group"
+                ref={ref as any}
+                onClick={() => handleAdd(item)} // Click anywhere on the item to add
+                className="flex items-center justify-start gap-3 p-3 rounded-lg bg-black/20 hover:bg-black/30 transition-colors cursor-pointer"
               >
-                <div className="flex items-center gap-3">
-                  <Icon className={colorClass} size={16} />
-                  <div>
-                    <p className="text-white font-medium">{item.title}</p>
-                    <p className="text-gray-400 text-sm">
-                      {item.slides.length} slides
-                    </p>
-                  </div>
+                <Icon className={colorClass} size={16} />
+                <div>
+                  <p className="text-white font-medium">{item.title}</p>
+                  <p className="text-gray-400 text-sm">
+                    {item.slides.length} slides
+                  </p>
                 </div>
-
-                <Button
-                  onClick={() => handleAdd(item)}
-                  size="sm"
-                  variant="ghost"
-                  className="opacity-0 group-hover:opacity-100 transition-opacity text-white hover:bg-white/20"
-                >
-                  <Plus size={16} />
-                </Button>
               </motion.div>
             );
           })}
@@ -159,6 +150,7 @@ function FolderRenderer({
               toggleFolder={toggleFolder}
               handleAdd={handleAdd}
               path={fullPath}
+              firstMatchRef={firstMatchRef}
             />
           ))}
         </div>
@@ -167,41 +159,48 @@ function FolderRenderer({
   );
 }
 
+// Main Component
 export default function FileNavigation() {
   const { content, addToServicePlan, currentServicePlan } = useAppStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
     new Set()
   );
+  const firstMatchRef = useRef<HTMLDivElement | null>(null);
 
   const handleAddToServicePlan = (item: ContentItem) => {
     if (currentServicePlan) addToServicePlan(item);
   };
 
-  const filteredContent = useMemo(() => {
-    const newExpanded = new Set<string>();
-
-    return {
+  // Filter content and track expanded folders
+  const { filteredContent, newExpanded } = useMemo(() => {
+    const expanded = new Set<string>();
+    const filtered = {
       songs: searchQuery
-        ? filterTree(content.songs, searchQuery, newExpanded) || {}
+        ? filterTree(content.songs, searchQuery, expanded) || {}
         : content.songs,
       verses: searchQuery
-        ? filterTree(content.verses, searchQuery, newExpanded) || {}
+        ? filterTree(content.verses, searchQuery, expanded) || {}
         : content.verses,
       "custom-templates": searchQuery
-        ? filterTree(content["custom-templates"], searchQuery, newExpanded) ||
-          {}
+        ? filterTree(content["custom-templates"], searchQuery, expanded) || {}
         : content["custom-templates"],
-      newExpanded,
     };
+    return { filteredContent: filtered, newExpanded: expanded };
   }, [content, searchQuery]);
 
-  // Auto-expand folders with matches
+  // Update expanded folders and scroll to first match on search
   useEffect(() => {
-    if (searchQuery && filteredContent.newExpanded) {
-      setExpandedFolders(new Set(filteredContent.newExpanded));
+    if (searchQuery) {
+      setExpandedFolders(new Set(newExpanded));
+      if (firstMatchRef.current) {
+        firstMatchRef.current.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      }
     }
-  }, [searchQuery, filteredContent.newExpanded]);
+  }, [searchQuery, newExpanded]);
 
   const toggleFolder = (folderId: string) => {
     const newExpanded = new Set(expandedFolders);
@@ -234,11 +233,7 @@ export default function FileNavigation() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">
-        {Object.entries({
-          songs: filteredContent.songs,
-          verses: filteredContent.verses,
-          "custom-templates": filteredContent["custom-templates"],
-        }).map(([folderName, items]) => (
+        {Object.entries(filteredContent).map(([folderName, items]) => (
           <FolderRenderer
             key={folderName}
             folderName={folderName}
@@ -246,6 +241,7 @@ export default function FileNavigation() {
             expandedFolders={expandedFolders}
             toggleFolder={toggleFolder}
             handleAdd={handleAddToServicePlan}
+            firstMatchRef={firstMatchRef}
           />
         ))}
       </div>

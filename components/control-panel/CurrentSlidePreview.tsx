@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Monitor,
   Square,
@@ -12,15 +12,18 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  SquareX,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
+import { useEffect } from "react";
 
 export default function CurrentSlidePreview() {
   const {
     currentSlide,
+    currentServicePlan,
     showBlank,
     showLogo,
     showTimer,
@@ -31,10 +34,11 @@ export default function CurrentSlidePreview() {
     isProjectorOpen,
     goToNextSlide,
     previousSlide,
+    goToSlide,
   } = useAppStore();
-
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState("");
+  const [showSlideOverview, setShowSlideOverview] = useState(false);
 
   const handleEditStart = () => {
     setEditContent(currentSlide?.content || "");
@@ -49,14 +53,27 @@ export default function CurrentSlidePreview() {
     setIsEditing(false);
     setEditContent("");
   };
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() === "g") {
+        setShowSlideOverview((prev) => !prev);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
 
   return (
     <motion.div
-      className="h-full bg-gray-900/50 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden"
+      className="h-full bg-gray-900/50 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden relative"
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.3, delay: 0.1 }}
     >
+      {/* Header */}
       <div className="p-4 border-b border-white/10">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-white">Current Slide</h3>
@@ -84,7 +101,7 @@ export default function CurrentSlidePreview() {
         </div>
       </div>
 
-      {/* Slide content + notes + bottom buttons */}
+      {/* Slide Content */}
       <div className="flex-1 p-4 flex flex-col justify-between">
         {!currentSlide ? (
           <div className="h-full flex items-center justify-center text-gray-400">
@@ -100,7 +117,7 @@ export default function CurrentSlidePreview() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
           >
-            {/* Card and notes */}
+            {/* Card + Notes */}
             <div className="flex-1 flex flex-col gap-4">
               <Card className="w-full aspect-video bg-black border-white/20 flex items-center justify-center overflow-hidden">
                 {isEditing ? (
@@ -162,7 +179,6 @@ export default function CurrentSlidePreview() {
                 )}
               </Card>
 
-              {/* Presenter Notes */}
               {currentSlide.notes && !isEditing && (
                 <motion.div
                   className="p-3 bg-yellow-600/10 border border-yellow-600/20 rounded-lg"
@@ -181,6 +197,21 @@ export default function CurrentSlidePreview() {
             {/* Bottom Buttons */}
             {!isEditing && (
               <div className="absolute bottom-4 right-4 flex gap-3">
+                {/* Slide Overview Button */}
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setShowSlideOverview((prev) => !prev)}
+                  className={`w-16 h-16 rounded-full ${
+                    showSlideOverview
+                      ? "bg-blue-600/20 text-blue-400"
+                      : "bg-white/10 text-white hover:bg-white/20"
+                  }`}
+                >
+                  <SquareX size={18} />
+                </Button>
+
+                {/* Other Buttons */}
                 <Button
                   size="icon"
                   variant="ghost"
@@ -237,6 +268,41 @@ export default function CurrentSlidePreview() {
             )}
           </motion.div>
         )}
+
+        {/* Fullscreen Slide Overview */}
+        <AnimatePresence>
+          {showSlideOverview && currentServicePlan && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-gray-900/95 z-50 p-8 overflow-auto grid gap-4"
+              style={{
+                gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+              }}
+            >
+              {currentServicePlan.items
+                .flatMap((item) => item.slides)
+                .map((slide, index) => (
+                  <div
+                    key={slide.id}
+                    className="bg-black/20 rounded-lg cursor-pointer hover:ring-2 hover:ring-white relative p-2 flex flex-col justify-between"
+                    onClick={() => {
+                      goToSlide(index);
+                      setShowSlideOverview(false);
+                    }}
+                  >
+                    <p className="text-white text-sm truncate">
+                      {slide.title || `Slide ${index + 1}`}
+                    </p>
+                    <div className="text-xs text-gray-300 mt-1 h-28 overflow-hidden whitespace-pre-wrap">
+                      {slide.content || "Slide preview"}
+                    </div>
+                  </div>
+                ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </motion.div>
   );

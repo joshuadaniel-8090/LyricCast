@@ -1,6 +1,6 @@
 import { loadContent } from "@/lib/content";
 import Dock from "@/components/dock/Dock";
-import ClientContentLoader from "./ClientContentLoader";
+import ClientContentLoader from "@/components/control-panel/ClientContentLoader";
 
 export default async function PresentationPage() {
   const content = await loadContent();

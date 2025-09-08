@@ -17,6 +17,7 @@ export type ContentTree = {
   "custom-templates": FolderNode;
 };
 export interface Slide {
+  title: string;
   id: string;
   content: string;
   type: "text" | "image" | "video" | "countdown" | "blank" | "logo";
