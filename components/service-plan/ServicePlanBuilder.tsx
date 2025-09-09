@@ -183,13 +183,6 @@ export default function ServicePlanBuilder() {
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-3">
                                 <div
-                                  {...provided.dragHandleProps}
-                                  className="cursor-grab active:cursor-grabbing text-gray-500 hover:text-white"
-                                >
-                                  <GripVertical size={16} />
-                                </div>
-
-                                <div
                                   className={`p-2 rounded-lg border ${colorClass}`}
                                 >
                                   <Icon size={16} />

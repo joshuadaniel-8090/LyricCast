@@ -80,3 +80,35 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Slide in from right */
+@keyframes slideIn {
+  from {
+    transform: translateY(120%); /* completely off-screen to the right */
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0); /* normal position in viewport */
+    opacity: 1;
+  }
+}
+
+/* Slide out to bottom */
+@keyframes slideOut {
+  from {
+    transform: translateX(0); /* start at current position */
+    opacity: 1;
+  }
+  to {
+    transform: translateY(120%); /* move downward out of viewport */
+    opacity: 0;
+  }
+}
+
+.animate-slideIn {
+  animation: slideIn 0.3s ease-out forwards;
+}
+
+.animate-slideOut {
+  animation: slideOut 0.25s ease-in forwards;
+}

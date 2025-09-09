@@ -141,12 +141,28 @@ export const useAppStore = create<AppStore>()(
           order: currentServicePlan.items.length,
         };
 
+        const newItems = [...currentServicePlan.items, planItem];
+
+        const firstSlide = planItem.slides[0] || null;
+        const secondSlide = planItem.slides[1] || null;
+
         set({
           currentServicePlan: {
             ...currentServicePlan,
-            items: [...currentServicePlan.items, planItem],
+            items: newItems,
+            currentSlideIndex: firstSlide
+              ? 0
+              : currentServicePlan.currentSlideIndex,
           },
+          currentSlide: firstSlide,
+          nextSlide: secondSlide,
         });
+
+        if (channel)
+          channel.postMessage({
+            currentSlide: firstSlide,
+            nextSlide: secondSlide,
+          });
       },
 
       removeFromServicePlan: (itemId) => {

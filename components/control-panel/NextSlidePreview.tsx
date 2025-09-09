@@ -6,8 +6,11 @@ import { useAppStore } from "@/lib/store";
 import { Card } from "@/components/ui/card";
 
 export default function NextSlidePreview() {
-  const { nextSlide: nextSlideData } = useAppStore();
-  const { currentSlide } = useAppStore();
+  const { nextSlide: nextSlideData, currentServicePlan } = useAppStore();
+
+  // --- Derived check: are there slides at all? ---
+  const hasSlides =
+    currentServicePlan?.items?.some((item) => item.slides?.length > 0) || false;
 
   return (
     <motion.div
@@ -24,7 +27,14 @@ export default function NextSlidePreview() {
       </div>
 
       <div className="flex-1 p-4">
-        {!nextSlideData ? (
+        {!hasSlides ? (
+          <div className="h-full flex items-center justify-center text-gray-400">
+            <div className="text-center">
+              <Square size={48} className="mx-auto mb-4 opacity-50" />
+              <p className="font-medium">No songs/slides available</p>
+            </div>
+          </div>
+        ) : !nextSlideData ? (
           <div className="h-full flex items-center justify-center text-gray-400">
             <div className="text-center">
               <ArrowRight size={48} className="mx-auto mb-4 opacity-50" />

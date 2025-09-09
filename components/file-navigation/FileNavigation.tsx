@@ -2,12 +2,13 @@
 
 import { useState, useMemo, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { Search, Folder, Music, Book, Layout } from "lucide-react";
+import { Music, Book, Layout, Folder } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { ContentItem } from "@/types";
-import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { toast } from "@/hooks/use-toast";
 
-// Map content types to icons and colors
+// Icon mapping
 const typeIcons = { song: Music, verse: Book, "custom-template": Layout };
 const typeColors = {
   song: "text-blue-400",
@@ -23,9 +24,8 @@ function filterTree(
   path = ""
 ): any {
   if (!node) return null;
-
   if (Array.isArray(node)) {
-    const matchedFiles = node.filter((item) =>
+    const matchedFiles = node.filter((item: ContentItem) =>
       item.title.toLowerCase().includes(query.toLowerCase())
     );
     return matchedFiles.length ? matchedFiles : null;
@@ -54,11 +54,10 @@ function filterTree(
       }
     }
   }
-
   return hasMatch ? result : null;
 }
 
-// Recursive Folder Renderer
+// Folder Renderer
 function FolderRenderer({
   folderName,
   items,
@@ -89,7 +88,7 @@ function FolderRenderer({
     <motion.div key={fullPath} className="mb-4">
       <motion.button
         onClick={() => toggleFolder(fullPath)}
-        className="flex items-center gap-3 w-full p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
+        className="flex items-center gap-3 w-full p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors top-0 z-10"
       >
         <motion.div
           animate={{ rotate: isExpanded ? 90 : 0 }}
@@ -118,8 +117,6 @@ function FolderRenderer({
           {files.map((item, idx) => {
             const Icon = typeIcons[item.type as keyof typeof typeIcons];
             const colorClass = typeColors[item.type as keyof typeof typeColors];
-
-            // Attach ref to first matching file for scrolling
             const ref =
               idx === 0 && !firstMatchRef.current ? firstMatchRef : undefined;
 
@@ -127,15 +124,17 @@ function FolderRenderer({
               <motion.div
                 key={item.id}
                 ref={ref as any}
-                onClick={() => handleAdd(item)} // Click anywhere on the item to add
-                className="flex items-center justify-start gap-3 p-3 rounded-lg bg-black/20 hover:bg-black/30 transition-colors cursor-pointer"
+                onClick={() => handleAdd(item)}
+                className="flex flex-col cursor-pointer"
               >
-                <Icon className={colorClass} size={16} />
-                <div>
-                  <p className="text-white font-medium">{item.title}</p>
-                  <p className="text-gray-400 text-sm">
-                    {item.slides.length} slides
-                  </p>
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-black/20 hover:bg-black/30 transition-colors">
+                  <Icon className={colorClass} size={16} />
+                  <div>
+                    <p className="text-white font-medium">{item.title}</p>
+                    <p className="text-gray-400 text-sm">
+                      {item.slides.length} slides
+                    </p>
+                  </div>
                 </div>
               </motion.div>
             );
@@ -159,7 +158,7 @@ function FolderRenderer({
   );
 }
 
-// Main Component
+// Main component
 export default function FileNavigation() {
   const { content, addToServicePlan, currentServicePlan } = useAppStore();
   const [searchQuery, setSearchQuery] = useState("");
@@ -169,10 +168,19 @@ export default function FileNavigation() {
   const firstMatchRef = useRef<HTMLDivElement | null>(null);
 
   const handleAddToServicePlan = (item: ContentItem) => {
-    if (currentServicePlan) addToServicePlan(item);
+    if (currentServicePlan) {
+      addToServicePlan(item);
+
+      // ✅ Show toast only for songs
+      if (item.type === "song") {
+        toast({
+          title: "Song Added 🎵",
+          description: `${item.title} has been added to the plan.`,
+        });
+      }
+    }
   };
 
-  // Filter content and track expanded folders
   const { filteredContent, newExpanded } = useMemo(() => {
     const expanded = new Set<string>();
     const filtered = {
@@ -189,7 +197,6 @@ export default function FileNavigation() {
     return { filteredContent: filtered, newExpanded: expanded };
   }, [content, searchQuery]);
 
-  // Update expanded folders and scroll to first match on search
   useEffect(() => {
     if (searchQuery) {
       setExpandedFolders(new Set(newExpanded));
@@ -211,40 +218,53 @@ export default function FileNavigation() {
 
   return (
     <motion.div
-      className="h-full bg-gray-900/50 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden"
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.3 }}
+      className="h-[58rem] grid grid-cols-[1fr_1fr_1fr] gap-4 p-6"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
     >
-      <div className="p-6 border-b border-white/10">
-        <h2 className="text-xl font-bold text-white mb-4">Content Library</h2>
-        <div className="relative">
-          <Search
-            className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-            size={18}
-          />
-          <Input
-            placeholder="Search content..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 bg-black/20 border-white/20 text-white placeholder-gray-400"
-          />
-        </div>
-      </div>
+      {(["songs", "verses", "custom-templates"] as const).map((folderName) => {
+        const items = filteredContent[folderName];
+        if (!items) return null;
 
-      <div className="flex-1 overflow-y-auto p-6">
-        {Object.entries(filteredContent).map(([folderName, items]) => (
-          <FolderRenderer
+        const Icon =
+          folderName === "songs"
+            ? Music
+            : folderName === "verses"
+            ? Book
+            : Layout;
+        const colorClass =
+          folderName === "songs"
+            ? "text-blue-400"
+            : folderName === "verses"
+            ? "text-green-400"
+            : "text-purple-400";
+
+        return (
+          <div
             key={folderName}
-            folderName={folderName}
-            items={items}
-            expandedFolders={expandedFolders}
-            toggleFolder={toggleFolder}
-            handleAdd={handleAddToServicePlan}
-            firstMatchRef={firstMatchRef}
-          />
-        ))}
-      </div>
+            className="flex flex-col bg-black/20 rounded-xl p-3 overflow-y-auto"
+            style={{ minHeight: 0 }}
+          >
+            <div className="flex items-center gap-2 mb-2 sticky top-0 z-10 bg-black/30 backdrop-blur-md p-2">
+              <Icon className={colorClass} size={18} />
+              <span className="text-white font-semibold capitalize">
+                {folderName.replace("-", " ")}
+              </span>
+            </div>
+
+            <ScrollArea className="flex-1">
+              <FolderRenderer
+                folderName={folderName}
+                items={items}
+                expandedFolders={expandedFolders}
+                toggleFolder={toggleFolder}
+                handleAdd={handleAddToServicePlan}
+                firstMatchRef={firstMatchRef}
+              />
+            </ScrollArea>
+          </div>
+        );
+      })}
     </motion.div>
   );
 }

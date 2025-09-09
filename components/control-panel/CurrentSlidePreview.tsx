@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Monitor,
@@ -18,7 +18,9 @@ import { useAppStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
-import { useEffect } from "react";
+import { io, Socket } from "socket.io-client";
+
+let socket: Socket | null = null;
 
 export default function CurrentSlidePreview() {
   const {
@@ -36,34 +38,69 @@ export default function CurrentSlidePreview() {
     previousSlide,
     goToSlide,
   } = useAppStore();
+
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState("");
   const [showSlideOverview, setShowSlideOverview] = useState(false);
 
+  // --- Derived check: are there slides? ---
+  const hasSlides =
+    currentServicePlan?.items?.some((item) => item.slides?.length > 0) || false;
+
+  // --- Socket.io setup ---
+  useEffect(() => {
+    if (!socket) {
+      socket = io("/", { path: "/api/socketio" });
+
+      socket.on("connect", () => {
+        console.log("✅ Projector connected:", socket?.id);
+      });
+
+      socket.on("remote-command", ({ command }) => {
+        console.log("🎮 Remote command:", command);
+        if (command === "next") goToNextSlide();
+        if (command === "prev") previousSlide();
+        if (command === "blank") toggleBlank();
+        if (command === "logo") toggleLogo();
+        if (command === "timer") toggleTimer();
+      });
+    }
+
+    return () => {
+      socket?.off("remote-command");
+    };
+  }, [goToNextSlide, previousSlide, toggleBlank, toggleLogo, toggleTimer]);
+
+  useEffect(() => {
+    if (socket && currentSlide) {
+      socket.emit("slide-update", {
+        id: currentSlide.id,
+        title: currentSlide.title || "",
+        content: currentSlide.content || "",
+      });
+    }
+  }, [currentSlide]);
+
+  // --- Editing Handlers ---
   const handleEditStart = () => {
     setEditContent(currentSlide?.content || "");
     setIsEditing(true);
   };
-
-  const handleEditSave = () => {
-    setIsEditing(false);
-  };
-
+  const handleEditSave = () => setIsEditing(false);
   const handleEditCancel = () => {
     setIsEditing(false);
     setEditContent("");
   };
+
+  // --- Keyboard shortcut for Overview ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() === "g") {
         setShowSlideOverview((prev) => !prev);
       }
     };
-
     window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   return (
@@ -74,36 +111,42 @@ export default function CurrentSlidePreview() {
       transition={{ duration: 0.3, delay: 0.1 }}
     >
       {/* Header */}
-      <div className="p-4 border-b border-white/10">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-white">Current Slide</h3>
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={toggleProjector}
-              className={`text-white ${
-                isProjectorOpen ? "bg-green-600/20" : "hover:bg-white/20"
-              }`}
-            >
-              <Monitor size={14} />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={handleEditStart}
-              className="text-white hover:bg-white/20"
-              disabled={!currentSlide}
-            >
-              <Edit3 size={14} />
-            </Button>
-          </div>
+      <div className="p-4 border-b border-white/10 flex justify-between items-center mb-4">
+        <h3 className="text-lg font-semibold text-white">Current Slide</h3>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={toggleProjector}
+            className={`text-white ${
+              isProjectorOpen ? "bg-green-600/20" : "hover:bg-white/20"
+            }`}
+            disabled={!currentSlide}
+          >
+            <Monitor size={14} />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleEditStart}
+            className="text-white hover:bg-white/20"
+            disabled={!currentSlide}
+          >
+            <Edit3 size={14} />
+          </Button>
         </div>
       </div>
 
       {/* Slide Content */}
       <div className="flex-1 p-4 flex flex-col justify-between">
-        {!currentSlide ? (
+        {!hasSlides ? (
+          <div className="h-full flex items-center justify-center text-gray-400">
+            <div className="text-center">
+              <Square size={48} className="mx-auto mb-4 opacity-50" />
+              <p className="font-medium">No songs/slides available</p>
+            </div>
+          </div>
+        ) : !currentSlide ? (
           <div className="h-full flex items-center justify-center text-gray-400">
             <div className="text-center">
               <Monitor size={48} className="mx-auto mb-4 opacity-50" />
@@ -117,7 +160,7 @@ export default function CurrentSlidePreview() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
           >
-            {/* Card + Notes */}
+            {/* Slide Card */}
             <div className="flex-1 flex flex-col gap-4">
               <Card className="w-full aspect-video bg-black border-white/20 flex items-center justify-center overflow-hidden">
                 {isEditing ? (
@@ -134,16 +177,14 @@ export default function CurrentSlidePreview() {
                         variant="ghost"
                         onClick={handleEditCancel}
                       >
-                        <X size={14} className="mr-1" />
-                        Cancel
+                        <X size={14} className="mr-1" /> Cancel
                       </Button>
                       <Button
                         size="sm"
                         onClick={handleEditSave}
                         className="bg-green-600 hover:bg-green-700"
                       >
-                        <Save size={14} className="mr-1" />
-                        Save
+                        <Save size={14} className="mr-1" /> Save
                       </Button>
                     </div>
                   </div>
@@ -157,13 +198,13 @@ export default function CurrentSlidePreview() {
                     <Crown size={48} className="mx-auto mb-4 text-yellow-400" />
                     <p className="text-yellow-400">Church Logo</p>
                   </div>
-                ) : currentSlide.type === "image" && currentSlide.imageUrl ? (
+                ) : currentSlide?.type === "image" && currentSlide.imageUrl ? (
                   <img
                     src={currentSlide.imageUrl}
                     alt="Slide content"
                     className="max-w-full max-h-full object-contain"
                   />
-                ) : currentSlide.type === "countdown" &&
+                ) : currentSlide?.type === "countdown" &&
                   currentSlide.countdown ? (
                   <div className="text-center">
                     <Timer size={48} className="mx-auto mb-4 text-blue-400" />
@@ -174,12 +215,12 @@ export default function CurrentSlidePreview() {
                   </div>
                 ) : (
                   <div className="text-white text-2xl leading-relaxed whitespace-pre-wrap text-center max-w-full px-4">
-                    {currentSlide.content}
+                    {currentSlide?.content || ""}
                   </div>
                 )}
               </Card>
 
-              {currentSlide.notes && !isEditing && (
+              {currentSlide?.notes && !isEditing && (
                 <motion.div
                   className="p-3 bg-yellow-600/10 border border-yellow-600/20 rounded-lg"
                   initial={{ opacity: 0, y: 10 }}
@@ -193,85 +234,80 @@ export default function CurrentSlidePreview() {
                 </motion.div>
               )}
             </div>
-
-            {/* Bottom Buttons */}
-            {!isEditing && (
-              <div className="absolute bottom-4 right-4 flex gap-3">
-                {/* Slide Overview Button */}
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => setShowSlideOverview((prev) => !prev)}
-                  className={`w-16 h-16 rounded-full ${
-                    showSlideOverview
-                      ? "bg-blue-600/20 text-blue-400"
-                      : "bg-white/10 text-white hover:bg-white/20"
-                  }`}
-                >
-                  <SquareX size={18} />
-                </Button>
-
-                {/* Other Buttons */}
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={toggleBlank}
-                  className={`w-16 h-16 rounded-full ${
-                    showBlank
-                      ? "bg-red-600/20 text-red-400"
-                      : "bg-white/10 text-white hover:bg-white/20"
-                  }`}
-                >
-                  <Square size={18} />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={toggleLogo}
-                  className={`w-16 h-16 rounded-full ${
-                    showLogo
-                      ? "bg-yellow-600/20 text-yellow-400"
-                      : "bg-white/10 text-white hover:bg-white/20"
-                  }`}
-                >
-                  <Crown size={18} />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={toggleTimer}
-                  className={`w-16 h-16 rounded-full ${
-                    showTimer
-                      ? "bg-blue-600/20 text-blue-400"
-                      : "bg-white/10 text-white hover:bg-white/20"
-                  }`}
-                >
-                  <Timer size={18} />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={previousSlide}
-                  className="w-16 h-16 rounded-full bg-white/10 hover:bg-white/20 text-white"
-                >
-                  <ChevronLeft size={20} />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={goToNextSlide}
-                  className="w-16 h-16 rounded-full bg-white/10 hover:bg-white/20 text-white"
-                >
-                  <ChevronRight size={20} />
-                </Button>
-              </div>
-            )}
           </motion.div>
         )}
 
-        {/* Fullscreen Slide Overview */}
+        {/* Bottom Controls (always visible except Projector/Edit) */}
+        <div className="absolute bottom-4 right-4 flex gap-3">
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => setShowSlideOverview((prev) => !prev)}
+            className={`w-16 h-16 rounded-full ${
+              showSlideOverview
+                ? "bg-blue-600/20 text-blue-400"
+                : "bg-white/10 text-white hover:bg-white/20"
+            }`}
+          >
+            <SquareX size={18} />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={toggleBlank}
+            className={`w-16 h-16 rounded-full ${
+              showBlank
+                ? "bg-red-600/20 text-red-400"
+                : "bg-white/10 text-white hover:bg-white/20"
+            }`}
+          >
+            <Square size={18} />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={toggleLogo}
+            className={`w-16 h-16 rounded-full ${
+              showLogo
+                ? "bg-yellow-600/20 text-yellow-400"
+                : "bg-white/10 text-white hover:bg-white/20"
+            }`}
+          >
+            <Crown size={18} />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={toggleTimer}
+            className={`w-16 h-16 rounded-full ${
+              showTimer
+                ? "bg-blue-600/20 text-blue-400"
+                : "bg-white/10 text-white hover:bg-white/20"
+            }`}
+          >
+            <Timer size={18} />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={previousSlide}
+            className="w-16 h-16 rounded-full bg-white/10 hover:bg-white/20 text-white"
+          >
+            <ChevronLeft size={20} />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={goToNextSlide}
+            className="w-16 h-16 rounded-full bg-white/10 hover:bg-white/20 text-white"
+          >
+            <ChevronRight size={20} />
+          </Button>
+        </div>
+
+        {/* Slide Overview */}
         <AnimatePresence>
-          {showSlideOverview && currentServicePlan && (
+          {showSlideOverview && hasSlides && currentServicePlan && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
