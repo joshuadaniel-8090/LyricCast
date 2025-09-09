@@ -238,7 +238,7 @@ export default function SlideNavigator() {
           </DndContext>
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-2 p-4">
-            <div className="bg-black/30 backdrop-blur-md rounded-xl w-full max-w-xs p-6 flex flex-col items-center justify-center">
+            <div className="rounded-xl w-full max-w-xs p-6 flex flex-col items-center justify-center">
               <Music size={48} className="mb-4 opacity-50" />
               <p className="text-sm text-gray-200 text-center">
                 No slides to navigate

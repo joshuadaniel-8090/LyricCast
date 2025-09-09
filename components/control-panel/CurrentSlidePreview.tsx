@@ -37,6 +37,7 @@ export default function CurrentSlidePreview() {
     goToNextSlide,
     previousSlide,
     goToSlide,
+    setCurrentSlide, // assuming you have a setter in your store
   } = useAppStore();
 
   const [isEditing, setIsEditing] = useState(false);
@@ -45,7 +46,7 @@ export default function CurrentSlidePreview() {
 
   // --- Derived check: are there slides? ---
   const hasSlides =
-    currentServicePlan?.items?.some((item) => item.slides?.length > 0) || false;
+    currentServicePlan?.items?.some((item) => item.slides?.length > 0) ?? false;
 
   // --- Socket.io setup ---
   useEffect(() => {
@@ -57,7 +58,6 @@ export default function CurrentSlidePreview() {
       });
 
       socket.on("remote-command", ({ command }) => {
-        console.log("🎮 Remote command:", command);
         if (command === "next") goToNextSlide();
         if (command === "prev") previousSlide();
         if (command === "blank") toggleBlank();
@@ -103,6 +103,13 @@ export default function CurrentSlidePreview() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  // --- Reset current slide if service plan is empty ---
+  useEffect(() => {
+    if (!hasSlides) {
+      setCurrentSlide(null);
+    }
+  }, [hasSlides, setCurrentSlide]);
+
   return (
     <motion.div
       className="h-full bg-gray-900/50 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden relative"
@@ -121,7 +128,7 @@ export default function CurrentSlidePreview() {
             className={`text-white ${
               isProjectorOpen ? "bg-green-600/20" : "hover:bg-white/20"
             }`}
-            disabled={!currentSlide}
+            disabled={!hasSlides || !currentSlide}
           >
             <Monitor size={14} />
           </Button>
@@ -130,7 +137,7 @@ export default function CurrentSlidePreview() {
             variant="ghost"
             onClick={handleEditStart}
             className="text-white hover:bg-white/20"
-            disabled={!currentSlide}
+            disabled={!hasSlides || !currentSlide}
           >
             <Edit3 size={14} />
           </Button>
@@ -237,7 +244,7 @@ export default function CurrentSlidePreview() {
           </motion.div>
         )}
 
-        {/* Bottom Controls (always visible except Projector/Edit) */}
+        {/* Bottom Controls */}
         <div className="absolute bottom-4 right-4 flex gap-3">
           <Button
             size="icon"
@@ -248,6 +255,7 @@ export default function CurrentSlidePreview() {
                 ? "bg-blue-600/20 text-blue-400"
                 : "bg-white/10 text-white hover:bg-white/20"
             }`}
+            disabled={!hasSlides}
           >
             <SquareX size={18} />
           </Button>
@@ -292,6 +300,7 @@ export default function CurrentSlidePreview() {
             variant="ghost"
             onClick={previousSlide}
             className="w-16 h-16 rounded-full bg-white/10 hover:bg-white/20 text-white"
+            disabled={!hasSlides || !currentSlide}
           >
             <ChevronLeft size={20} />
           </Button>
@@ -300,6 +309,7 @@ export default function CurrentSlidePreview() {
             variant="ghost"
             onClick={goToNextSlide}
             className="w-16 h-16 rounded-full bg-white/10 hover:bg-white/20 text-white"
+            disabled={!hasSlides || !currentSlide}
           >
             <ChevronRight size={20} />
           </Button>
