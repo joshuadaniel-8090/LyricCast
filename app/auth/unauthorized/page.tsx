@@ -14,7 +14,7 @@ import { Shield, ArrowRight, Home } from "lucide-react";
 
 export default function UnauthorizedPage() {
   const searchParams = useSearchParams();
-  const redirectTo = searchParams?.get("redirectTo") || "/chatapp";
+  const redirectTo = searchParams?.get("redirectTo") || "/presentation";
 
   return (
     <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center px-4 py-8">
@@ -40,7 +40,7 @@ export default function UnauthorizedPage() {
               Please sign in to continue to your requested page.
             </p>
 
-            {redirectTo && redirectTo !== "/chatapp" && (
+            {redirectTo && redirectTo !== "/presentation" && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-6">
                 <p className="text-sm text-blue-800">
                   <strong>Requested page:</strong> {redirectTo}
