@@ -1,71 +1,112 @@
 "use client";
 
-import { io } from "socket.io-client";
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import { io, Socket } from "socket.io-client";
+import { Button } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight, Square, Crown, Timer } from "lucide-react";
 
-const socket = io("/", { path: "/api/socketio" });
+let socket: Socket | null = null;
 
-export default function Remote() {
-  const [slide, setSlide] = useState<any>(null);
+export default function RemoteControlPage() {
+  const [isConnected, setIsConnected] = useState(false);
 
+  // --- Socket.io setup ---
   useEffect(() => {
-    socket.on("slide-update", (data) => setSlide(data));
+    if (!socket) {
+      socket = io("/", { path: "/api/socketio" });
+
+      socket.on("connect", () => {
+        console.log("📱 Remote connected:", socket?.id);
+        setIsConnected(true);
+      });
+
+      socket.on("disconnect", () => {
+        console.log("📴 Remote disconnected");
+        setIsConnected(false);
+      });
+    }
+
     return () => {
-      socket.off("slide-update");
+      socket?.off("connect");
+      socket?.off("disconnect");
     };
   }, []);
 
-  const sendCommand = (cmd: string) => {
-    socket.emit("remote-command", cmd);
+  // --- Emit remote commands ---
+  const sendCommand = (command: string) => {
+    if (socket && socket.connected) {
+      socket.emit("remote-command", { command });
+      console.log("📤 Sent command:", command);
+    } else {
+      console.warn("⚠️ Not connected, command not sent:", command);
+    }
   };
 
   return (
-    <div className="p-6 min-h-screen bg-gray-900 text-white flex flex-col gap-6 items-center">
-      <h1 className="text-2xl font-bold">🎛 Remote Control</h1>
-
-      {slide ? (
-        <div className="p-4 bg-black/30 rounded-xl w-full text-center">
-          <p className="text-lg font-semibold">{slide.content}</p>
-          {slide.notes && (
-            <p className="text-sm text-yellow-400 mt-2">Note: {slide.notes}</p>
-          )}
-        </div>
-      ) : (
-        <p>No slide data</p>
-      )}
-
-      <div className="grid grid-cols-3 gap-4 w-full">
-        <button
-          onClick={() => sendCommand("previous-slide")}
-          className="p-4 bg-gray-700 rounded-lg"
-        >
-          ◀ Prev
-        </button>
-        <button
-          onClick={() => sendCommand("next-slide")}
-          className="p-4 bg-blue-600 rounded-lg"
-        >
-          ▶ Next
-        </button>
-        <button
-          onClick={() => sendCommand("toggle-blank")}
-          className="p-4 bg-red-600 rounded-lg"
-        >
-          Blank
-        </button>
-        <button
-          onClick={() => sendCommand("toggle-logo")}
-          className="p-4 bg-yellow-500 rounded-lg col-span-2"
-        >
-          Logo
-        </button>
-        <button
-          onClick={() => sendCommand("toggle-timer")}
-          className="p-4 bg-green-500 rounded-lg col-span-3"
-        >
-          Timer
-        </button>
+    <motion.div
+      className="min-h-screen flex flex-col items-center justify-center gap-8 bg-gray-900 text-white p-6"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+    >
+      {/* Header with connection status */}
+      <div className="flex items-center gap-2">
+        <h1 className="text-xl font-bold">Remote Control</h1>
+        <span
+          className={`w-3 h-3 rounded-full ${
+            isConnected ? "bg-green-400" : "bg-red-500"
+          }`}
+          title={isConnected ? "Connected" : "Disconnected"}
+        />
       </div>
-    </div>
+
+      {/* Control buttons */}
+      <div className="flex flex-wrap gap-4 justify-center">
+        <Button
+          size="lg"
+          variant="ghost"
+          onClick={() => sendCommand("prev")}
+          className="w-16 h-16 rounded-full bg-white/10 hover:bg-white/20 text-white"
+        >
+          <ChevronLeft size={24} />
+        </Button>
+
+        <Button
+          size="lg"
+          variant="ghost"
+          onClick={() => sendCommand("blank")}
+          className="w-16 h-16 rounded-full bg-white/10 hover:bg-white/20 text-red-400"
+        >
+          <Square size={22} />
+        </Button>
+
+        <Button
+          size="lg"
+          variant="ghost"
+          onClick={() => sendCommand("logo")}
+          className="w-16 h-16 rounded-full bg-white/10 hover:bg-white/20 text-yellow-400"
+        >
+          <Crown size={22} />
+        </Button>
+
+        <Button
+          size="lg"
+          variant="ghost"
+          onClick={() => sendCommand("timer")}
+          className="w-16 h-16 rounded-full bg-white/10 hover:bg-white/20 text-blue-400"
+        >
+          <Timer size={22} />
+        </Button>
+
+        <Button
+          size="lg"
+          variant="ghost"
+          onClick={() => sendCommand("next")}
+          className="w-16 h-16 rounded-full bg-white/10 hover:bg-white/20 text-white"
+        >
+          <ChevronRight size={24} />
+        </Button>
+      </div>
+    </motion.div>
   );
 }
