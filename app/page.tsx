@@ -1,5 +1,6 @@
 "use client";
 
+import Navbar from "@/components/Navbar";
 import { motion } from "framer-motion";
 import {
   Files,
@@ -67,26 +68,7 @@ export default function LandingPage() {
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.8, ease: "easeOut" }}
       >
-        <div className="flex items-center gap-6 bg-black/20 backdrop-blur-xl border border-white/10 rounded-3xl px-6 py-3 shadow-lg">
-          <button
-            className="flex items-center gap-2 px-4 py-2 rounded-xl hover:bg-white/10 transition-all"
-            onClick={() => scrollToSection("hero")}
-          >
-            <Home size={20} /> Home
-          </button>
-          <button
-            className="flex items-center gap-2 px-4 py-2 rounded-xl hover:bg-white/10 transition-all"
-            onClick={() => scrollToSection("features")}
-          >
-            <Users size={20} /> Features
-          </button>
-          <button
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 hover:from-purple-500 hover:to-blue-500 transition-all font-medium shadow-lg"
-            onClick={() => router.push("/presentation")}
-          >
-            Join Beta
-          </button>
-        </div>
+        <Navbar />
       </motion.div>
 
       {/* Hero Section */}
@@ -119,7 +101,7 @@ export default function LandingPage() {
         >
           <motion.button
             className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 hover:from-purple-500 hover:to-blue-500 transition-all font-medium shadow-lg"
-            onClick={() => router.push("/presentation")}
+            onClick={() => router.push("/auth/login")}
           >
             Try Beta
           </motion.button>
@@ -208,7 +190,7 @@ export default function LandingPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.4 }}
-          onClick={() => router.push("/presentation")}
+          onClick={() => router.push("/auth/login")}
         >
           Join Beta
         </motion.button>
