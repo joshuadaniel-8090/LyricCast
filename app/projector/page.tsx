@@ -4,9 +4,13 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/lib/store";
 import { Crown, Square, Timer } from "lucide-react";
+import { io, Socket } from "socket.io-client";
+
+let socket: Socket | null = null;
 
 export default function ProjectorPage() {
-  const { currentSlide, showBlank, showLogo, showTimer } = useAppStore();
+  const { currentSlide, showBlank, showLogo, showTimer, setCurrentSlide } =
+    useAppStore();
 
   const [countdown, setCountdown] = useState<{
     minutes: number;
@@ -14,6 +18,35 @@ export default function ProjectorPage() {
   } | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // --- Connect to socket ---
+  useEffect(() => {
+    if (!socket) {
+      socket = io("/", { path: "/api/socketio" });
+
+      socket.on("connect", () =>
+        console.log("✅ Projector connected to Socket.IO:", socket?.id)
+      );
+
+      // Listen for slide updates from presenter
+      socket.on("slide-update", (slideData: any) => {
+        console.log("📡 Projector received slide:", slideData);
+
+        // Handle both formats: direct or wrapped
+        if (slideData?.currentSlide) {
+          setCurrentSlide(slideData.currentSlide);
+        } else {
+          setCurrentSlide(slideData);
+        }
+      });
+    }
+
+    return () => {
+      socket?.disconnect();
+      socket = null;
+    };
+  }, [setCurrentSlide]);
+
+  // --- Handle countdown slides ---
   useEffect(() => {
     if (currentSlide?.type === "countdown" && currentSlide.countdown) {
       setCountdown(currentSlide.countdown);
@@ -26,20 +59,17 @@ export default function ProjectorPage() {
     const timer = setInterval(() => {
       setCountdown((prev) => {
         if (!prev) return null;
-
-        if (prev.seconds > 0) {
-          return { ...prev, seconds: prev.seconds - 1 };
-        } else if (prev.minutes > 0) {
+        if (prev.seconds > 0) return { ...prev, seconds: prev.seconds - 1 };
+        else if (prev.minutes > 0)
           return { minutes: prev.minutes - 1, seconds: 59 };
-        } else {
-          return null;
-        }
+        else return null;
       });
     }, 1000);
 
     return () => clearInterval(timer);
   }, [countdown]);
 
+  // --- Fullscreen handling ---
   const enterFullscreen = async () => {
     try {
       if (document.documentElement.requestFullscreen) {
@@ -53,18 +83,16 @@ export default function ProjectorPage() {
 
   useEffect(() => {
     const handleKeyPress = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        if (document.fullscreenElement) {
-          document.exitFullscreen();
-          setIsFullscreen(false);
-        }
+      if (event.key === "Escape" && document.fullscreenElement) {
+        document.exitFullscreen();
+        setIsFullscreen(false);
       }
     };
-
     window.addEventListener("keydown", handleKeyPress);
     return () => window.removeEventListener("keydown", handleKeyPress);
   }, []);
 
+  // --- Render slide content ---
   const getSlideContent = () => {
     if (showBlank) {
       return (
@@ -219,24 +247,7 @@ export default function ProjectorPage() {
           </button>
         </div>
       )}
-
       <AnimatePresence mode="wait">{getSlideContent()}</AnimatePresence>
-
-      {showTimer && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.8 }}
-          className="fixed top-8 right-8 bg-black/50 backdrop-blur-sm border border-white/20 rounded-xl px-6 py-3"
-        >
-          <div className="flex items-center gap-3">
-            <Timer size={20} className="text-blue-400" />
-            <p className="text-white text-xl font-mono">
-              {new Date().toLocaleTimeString()}
-            </p>
-          </div>
-        </motion.div>
-      )}
     </div>
   );
 }
