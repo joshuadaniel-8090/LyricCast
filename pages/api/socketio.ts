@@ -1,21 +1,15 @@
-// pages/api/socketio.ts
-import { NextApiRequest } from "next";
-import { Server as ServerIO } from "socket.io";
-import { Server as NetServer } from "http";
+import type { NextApiRequest } from "next";
+import type { NextApiResponseServerIO } from "@/types/next";
+import { Server as IOServer } from "socket.io";
 
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
-export default function handler(req: NextApiRequest, res: any) {
+export default function handler(
+  req: NextApiRequest,
+  res: NextApiResponseServerIO
+) {
   if (!res.socket.server.io) {
-    console.log("✅ Initializing Socket.IO server...");
+    console.log("🔌 Initializing new Socket.IO server...");
 
-    const httpServer: NetServer = res.socket.server as any;
-
-    const io = new ServerIO(httpServer, {
+    const io = new IOServer(res.socket.server, {
       path: "/api/socketio",
       cors: {
         origin: "*",
@@ -28,19 +22,27 @@ export default function handler(req: NextApiRequest, res: any) {
     io.on("connection", (socket) => {
       console.log("🔌 Client connected:", socket.id);
 
-      socket.on("remote-command", (command) => {
-        socket.broadcast.emit("remote-command", command);
+      socket.on("disconnect", (reason) => {
+        console.log(`❌ Client disconnected: ${socket.id}, reason: ${reason}`);
       });
 
-      socket.on("slide-update", (slideData) => {
-        socket.broadcast.emit("slide-update", slideData);
+      socket.on("slide-update", (data) => {
+        socket.broadcast.emit("slide-update", data);
       });
 
-      socket.on("disconnect", () => {
-        console.log("❌ Client disconnected:", socket.id);
+      socket.on("blank-toggle", (value) => {
+        socket.broadcast.emit("blank-toggle", value);
+      });
+
+      socket.on("logo-toggle", (value) => {
+        socket.broadcast.emit("logo-toggle", value);
+      });
+
+      socket.on("timer-toggle", (value) => {
+        socket.broadcast.emit("timer-toggle", value);
       });
     });
   }
 
-  res.end();
+  res.end(); // ✅ works now because we extended NextApiResponse
 }

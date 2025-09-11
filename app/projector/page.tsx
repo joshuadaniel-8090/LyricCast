@@ -1,12 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/lib/store";
 import { Crown, Square, Timer } from "lucide-react";
 import { io, Socket } from "socket.io-client";
-
-let socket: Socket | null = null;
 
 export default function ProjectorPage() {
   const { currentSlide, showBlank, showLogo, showTimer, setCurrentSlide } =
@@ -18,31 +16,72 @@ export default function ProjectorPage() {
   } | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // --- Connect to socket ---
+  // useRef avoids "possibly null" errors and ensures single socket instance
+  const socketRef = useRef<Socket | null>(null);
+
+  // --- Connect to socket (single connection, safe listeners) ---
   useEffect(() => {
-    if (!socket) {
-      socket = io("/", { path: "/api/socketio" });
+    if (!socketRef.current) {
+      socketRef.current = io("/", {
+        path: "/api/socketio",
+        reconnection: true,
+        reconnectionAttempts: 10,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        timeout: 20000,
+      });
 
-      socket.on("connect", () =>
-        console.log("✅ Projector connected to Socket.IO:", socket?.id)
-      );
+      socketRef.current.on("connect", () => {
+        console.log(
+          "✅ Projector connected to Socket.IO:",
+          socketRef.current?.id
+        );
+      });
 
-      // Listen for slide updates from presenter
-      socket.on("slide-update", (slideData: any) => {
-        console.log("📡 Projector received slide:", slideData);
-
-        // Handle both formats: direct or wrapped
-        if (slideData?.currentSlide) {
-          setCurrentSlide(slideData.currentSlide);
-        } else {
-          setCurrentSlide(slideData);
-        }
+      socketRef.current.on("disconnect", (reason) => {
+        console.log("⚠️ Projector disconnected:", reason);
       });
     }
 
+    // Always remove previous handler then add to avoid duplicates
+    const attachSlideHandler = () => {
+      socketRef.current?.off("slide-update");
+      socketRef.current?.on("slide-update", (slideData: any) => {
+        try {
+          const incoming = slideData?.currentSlide ?? slideData;
+          if (!incoming) return;
+
+          // Use store's current state to avoid race conditions & stale overwrites
+          const storeState = useAppStore.getState();
+          if (storeState.currentSlide?.id === incoming?.id) {
+            // same slide already set — ignore
+            return;
+          }
+
+          console.log("📡 Projector received slide:", incoming);
+          setCurrentSlide(incoming);
+        } catch (err) {
+          console.error("Error handling slide-update:", err);
+        }
+      });
+    };
+
+    attachSlideHandler();
+
+    // In case the socket reconnects, reattach handler (some transports may drop handlers)
+    socketRef.current?.on("reconnect", () => {
+      console.log("🔁 Socket reconnected — reattaching handlers");
+      attachSlideHandler();
+    });
+
     return () => {
-      socket?.disconnect();
-      socket = null;
+      // clean listeners and disconnect
+      socketRef.current?.off("slide-update");
+      socketRef.current?.off("connect");
+      socketRef.current?.off("disconnect");
+      socketRef.current?.off("reconnect");
+      socketRef.current?.disconnect();
+      socketRef.current = null;
     };
   }, [setCurrentSlide]);
 
@@ -50,6 +89,8 @@ export default function ProjectorPage() {
   useEffect(() => {
     if (currentSlide?.type === "countdown" && currentSlide.countdown) {
       setCountdown(currentSlide.countdown);
+    } else {
+      setCountdown(null);
     }
   }, [currentSlide]);
 
@@ -60,9 +101,8 @@ export default function ProjectorPage() {
       setCountdown((prev) => {
         if (!prev) return null;
         if (prev.seconds > 0) return { ...prev, seconds: prev.seconds - 1 };
-        else if (prev.minutes > 0)
-          return { minutes: prev.minutes - 1, seconds: 59 };
-        else return null;
+        if (prev.minutes > 0) return { minutes: prev.minutes - 1, seconds: 59 };
+        return null;
       });
     }, 1000);
 
@@ -247,6 +287,7 @@ export default function ProjectorPage() {
           </button>
         </div>
       )}
+
       <AnimatePresence mode="wait">{getSlideContent()}</AnimatePresence>
     </div>
   );
