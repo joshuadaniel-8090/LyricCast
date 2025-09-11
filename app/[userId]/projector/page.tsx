@@ -5,23 +5,28 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/lib/store";
 import { Crown, Square, Timer } from "lucide-react";
 import { io, Socket } from "socket.io-client";
+import { useParams } from "next/navigation";
 
 export default function ProjectorPage() {
   const { currentSlide, showBlank, showLogo, showTimer, setCurrentSlide } =
     useAppStore();
+
+  const params = useParams();
+
+  // Narrow userId to string only
+  const rawUserId = params?.userId;
+  const userId = typeof rawUserId === "string" ? rawUserId : undefined;
 
   const [countdown, setCountdown] = useState<{
     minutes: number;
     seconds: number;
   } | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
-
-  // useRef avoids "possibly null" errors and ensures single socket instance
   const socketRef = useRef<Socket | null>(null);
 
-  // --- Connect to socket (single connection, safe listeners) ---
+  // --- Socket connection & slide listener ---
   useEffect(() => {
-    if (!socketRef.current) {
+    if (!socketRef.current && userId) {
       socketRef.current = io("/", {
         path: "/api/socketio",
         reconnection: true,
@@ -36,6 +41,10 @@ export default function ProjectorPage() {
           "✅ Projector connected to Socket.IO:",
           socketRef.current?.id
         );
+
+        // Join user-specific room safely
+        socketRef.current?.emit("join-room", { room: userId });
+        console.log("📡 Joined room:", userId);
       });
 
       socketRef.current.on("disconnect", (reason) => {
@@ -43,7 +52,6 @@ export default function ProjectorPage() {
       });
     }
 
-    // Always remove previous handler then add to avoid duplicates
     const attachSlideHandler = () => {
       socketRef.current?.off("slide-update");
       socketRef.current?.on("slide-update", (slideData: any) => {
@@ -51,12 +59,8 @@ export default function ProjectorPage() {
           const incoming = slideData?.currentSlide ?? slideData;
           if (!incoming) return;
 
-          // Use store's current state to avoid race conditions & stale overwrites
           const storeState = useAppStore.getState();
-          if (storeState.currentSlide?.id === incoming?.id) {
-            // same slide already set — ignore
-            return;
-          }
+          if (storeState.currentSlide?.id === incoming?.id) return;
 
           console.log("📡 Projector received slide:", incoming);
           setCurrentSlide(incoming);
@@ -68,14 +72,12 @@ export default function ProjectorPage() {
 
     attachSlideHandler();
 
-    // In case the socket reconnects, reattach handler (some transports may drop handlers)
     socketRef.current?.on("reconnect", () => {
       console.log("🔁 Socket reconnected — reattaching handlers");
       attachSlideHandler();
     });
 
     return () => {
-      // clean listeners and disconnect
       socketRef.current?.off("slide-update");
       socketRef.current?.off("connect");
       socketRef.current?.off("disconnect");
@@ -83,9 +85,9 @@ export default function ProjectorPage() {
       socketRef.current?.disconnect();
       socketRef.current = null;
     };
-  }, [setCurrentSlide]);
+  }, [setCurrentSlide, userId]);
 
-  // --- Handle countdown slides ---
+  // --- Countdown logic ---
   useEffect(() => {
     if (currentSlide?.type === "countdown" && currentSlide.countdown) {
       setCountdown(currentSlide.countdown);
@@ -132,7 +134,7 @@ export default function ProjectorPage() {
     return () => window.removeEventListener("keydown", handleKeyPress);
   }, []);
 
-  // --- Render slide content ---
+  // --- Slide rendering ---
   const getSlideContent = () => {
     if (showBlank) {
       return (
@@ -274,6 +276,8 @@ export default function ProjectorPage() {
       </motion.div>
     );
   };
+
+  if (!userId) return <p className="text-red-500">Error: Invalid userId</p>;
 
   return (
     <div className="w-screen h-screen overflow-hidden bg-black">

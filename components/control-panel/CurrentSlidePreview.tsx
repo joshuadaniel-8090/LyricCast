@@ -18,75 +18,49 @@ import { useAppStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
-import { io, Socket } from "socket.io-client";
-
-let socket: Socket | null = null;
+import { useParams, useRouter } from "next/navigation";
 
 export default function CurrentSlidePreview() {
+  const router = useRouter();
+  const params = useParams();
+  const rawUserId = params?.userId;
+  const userId = typeof rawUserId === "string" ? rawUserId : undefined;
+
   const {
     currentSlide,
     currentServicePlan,
     showBlank,
     showLogo,
     showTimer,
-    toggleProjector,
     toggleBlank,
     toggleLogo,
     toggleTimer,
-    isProjectorOpen,
     goToNextSlide,
     previousSlide,
     goToSlide,
-    setCurrentSlide, // assuming you have a setter in your store
+    setCurrentSlide,
   } = useAppStore();
 
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState("");
   const [showSlideOverview, setShowSlideOverview] = useState(false);
 
-  // --- Derived check: are there slides? ---
   const hasSlides =
     currentServicePlan?.items?.some((item) => item.slides?.length > 0) ?? false;
-
-  // --- Socket.io setup ---
-  useEffect(() => {
-    if (!socket) {
-      socket = io("/", { path: "/api/socketio" });
-
-      socket.on("connect", () => {
-        console.log("✅ Projector connected:", socket?.id);
-      });
-
-      socket.on("remote-command", ({ command }) => {
-        if (command === "next") goToNextSlide();
-        if (command === "prev") previousSlide();
-        if (command === "blank") toggleBlank();
-        if (command === "logo") toggleLogo();
-        if (command === "timer") toggleTimer();
-      });
-    }
-
-    return () => {
-      socket?.off("remote-command");
-    };
-  }, [goToNextSlide, previousSlide, toggleBlank, toggleLogo, toggleTimer]);
-
-  useEffect(() => {
-    if (socket && currentSlide) {
-      socket.emit("slide-update", {
-        id: currentSlide.id,
-        title: currentSlide.title || "",
-        content: currentSlide.content || "",
-      });
-    }
-  }, [currentSlide]);
 
   // --- Editing Handlers ---
   const handleEditStart = () => {
     setEditContent(currentSlide?.content || "");
     setIsEditing(true);
   };
-  const handleEditSave = () => setIsEditing(false);
+
+  const handleEditSave = () => {
+    if (currentSlide) {
+      setCurrentSlide({ ...currentSlide, content: editContent });
+    }
+    setIsEditing(false);
+  };
+
   const handleEditCancel = () => {
     setIsEditing(false);
     setEditContent("");
@@ -103,12 +77,11 @@ export default function CurrentSlidePreview() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // --- Reset current slide if service plan is empty ---
-  useEffect(() => {
-    if (!hasSlides) {
-      setCurrentSlide(null);
-    }
-  }, [hasSlides, setCurrentSlide]);
+  // --- Navigate to Projector Page ---
+  const goToProjector = () => {
+    if (!userId) return;
+    router.push(`/${userId}/projector`);
+  };
 
   return (
     <motion.div
@@ -124,10 +97,8 @@ export default function CurrentSlidePreview() {
           <Button
             size="sm"
             variant="ghost"
-            onClick={toggleProjector}
-            className={`text-white ${
-              isProjectorOpen ? "bg-green-600/20" : "hover:bg-white/20"
-            }`}
+            onClick={goToProjector}
+            className="text-white hover:bg-white/20"
             disabled={!hasSlides || !currentSlide}
           >
             <Monitor size={14} />
@@ -167,7 +138,6 @@ export default function CurrentSlidePreview() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
           >
-            {/* Slide Card */}
             <div className="flex-1 flex flex-col gap-4">
               <Card className="w-full aspect-video bg-black border-white/20 flex items-center justify-center overflow-hidden">
                 {isEditing ? (
@@ -226,20 +196,6 @@ export default function CurrentSlidePreview() {
                   </div>
                 )}
               </Card>
-
-              {currentSlide?.notes && !isEditing && (
-                <motion.div
-                  className="p-3 bg-yellow-600/10 border border-yellow-600/20 rounded-lg"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: 0.1 }}
-                >
-                  <p className="text-yellow-200 text-sm font-medium mb-1">
-                    Presenter Note:
-                  </p>
-                  <p className="text-white text-sm">{currentSlide.notes}</p>
-                </motion.div>
-              )}
             </div>
           </motion.div>
         )}
@@ -259,6 +215,7 @@ export default function CurrentSlidePreview() {
           >
             <SquareX size={18} />
           </Button>
+
           <Button
             size="icon"
             variant="ghost"
@@ -271,6 +228,7 @@ export default function CurrentSlidePreview() {
           >
             <Square size={18} />
           </Button>
+
           <Button
             size="icon"
             variant="ghost"
@@ -283,6 +241,7 @@ export default function CurrentSlidePreview() {
           >
             <Crown size={18} />
           </Button>
+
           <Button
             size="icon"
             variant="ghost"
@@ -295,6 +254,7 @@ export default function CurrentSlidePreview() {
           >
             <Timer size={18} />
           </Button>
+
           <Button
             size="icon"
             variant="ghost"
@@ -304,6 +264,7 @@ export default function CurrentSlidePreview() {
           >
             <ChevronLeft size={20} />
           </Button>
+
           <Button
             size="icon"
             variant="ghost"

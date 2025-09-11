@@ -36,7 +36,7 @@ export default function LoginPage() {
     setIsLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -47,14 +47,18 @@ export default function LoginPage() {
       return;
     }
 
-    // ✅ Redirect after login
-    router.push("/presentation");
+    if (data.user) {
+      // Redirect to dynamic route based on user ID
+      router.push(`/${data.user.id}/presentation`);
+    } else {
+      setError("User not found");
+      setIsLoading(false);
+    }
   };
 
   return (
     <>
       <Navbar />
-
       <div className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
         {/* Background grid pattern */}
         <div className="absolute inset-0 opacity-5">

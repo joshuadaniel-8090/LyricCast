@@ -22,24 +22,45 @@ export default function handler(
     io.on("connection", (socket) => {
       console.log("🔌 Client connected:", socket.id);
 
+      let roomId: string | null = null;
+
+      // Join a specific room
+      socket.on("join-room", ({ room }) => {
+        if (room) {
+          roomId = room;
+          socket.join(room);
+          console.log(`📌 Client ${socket.id} joined room: ${roomId}`);
+        }
+      });
+
       socket.on("disconnect", (reason) => {
         console.log(`❌ Client disconnected: ${socket.id}, reason: ${reason}`);
       });
 
+      // Forward events to the room only
       socket.on("slide-update", (data) => {
-        socket.broadcast.emit("slide-update", data);
+        if (roomId) {
+          socket.to(roomId).emit("slide-update", data);
+        }
+      });
+
+      socket.on("remote-command", (data) => {
+        if (roomId) {
+          socket.to(roomId).emit("remote-command", data);
+          console.log(`📤 Command sent to room ${roomId}:`, data);
+        }
       });
 
       socket.on("blank-toggle", (value) => {
-        socket.broadcast.emit("blank-toggle", value);
+        if (roomId) socket.to(roomId).emit("blank-toggle", value);
       });
 
       socket.on("logo-toggle", (value) => {
-        socket.broadcast.emit("logo-toggle", value);
+        if (roomId) socket.to(roomId).emit("logo-toggle", value);
       });
 
       socket.on("timer-toggle", (value) => {
-        socket.broadcast.emit("timer-toggle", value);
+        if (roomId) socket.to(roomId).emit("timer-toggle", value);
       });
     });
   }
