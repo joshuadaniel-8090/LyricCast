@@ -1,85 +1,125 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@/components/ui/card";
-import { Shield, ArrowRight, Home } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { motion } from "framer-motion";
+import { useAppStore } from "@/lib/store";
+import SlideNavigator from "@/components/control-panel/SlideNavigator";
+import CurrentSlidePreview from "@/components/control-panel/CurrentSlidePreview";
+import NextSlidePreview from "@/components/control-panel/NextSlidePreview";
+import { io, Socket } from "socket.io-client";
 
-export default function UnauthorizedPage() {
-  const searchParams = useSearchParams();
-  const redirectTo = searchParams?.get("redirectTo") || "/presentation";
+export default function ControlPanel() {
+  const {
+    goToNextSlide,
+    previousSlide,
+    toggleBlank,
+    toggleLogo,
+    toggleTimer,
+    showBlank,
+    showLogo,
+    showTimer,
+  } = useAppStore();
+
+  const socketRef = useRef<Socket | null>(null);
+
+  // Connect socket
+  useEffect(() => {
+    if (!socketRef.current) {
+      socketRef.current = io("/", {
+        path: "/api/socketio",
+      });
+
+      socketRef.current.on("connect", () => {
+        console.log(
+          "✅ ControlPanel connected to Socket.IO:",
+          socketRef.current?.id
+        );
+      });
+
+      socketRef.current.on("disconnect", (reason) => {
+        console.log("⚠️ ControlPanel disconnected:", reason);
+      });
+    }
+
+    return () => {
+      socketRef.current?.disconnect();
+      socketRef.current = null;
+    };
+  }, []);
+
+  // Handle keypress
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      switch (event.key) {
+        case "ArrowRight":
+          event.preventDefault();
+          goToNextSlide();
+          socketRef.current?.emit("slide-update", { currentSlide: "next" });
+          break;
+
+        case "ArrowLeft":
+          event.preventDefault();
+          previousSlide();
+          socketRef.current?.emit("slide-update", { currentSlide: "prev" });
+          break;
+
+        case "b":
+        case "B":
+          event.preventDefault();
+          toggleBlank();
+          socketRef.current?.emit("blank-toggle", !showBlank);
+          break;
+
+        case "l":
+        case "L":
+          event.preventDefault();
+          toggleLogo();
+          socketRef.current?.emit("logo-toggle", !showLogo);
+          break;
+
+        case "t":
+        case "T":
+          event.preventDefault();
+          toggleTimer();
+          socketRef.current?.emit("timer-toggle", !showTimer);
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyPress);
+    return () => window.removeEventListener("keydown", handleKeyPress);
+  }, [
+    goToNextSlide,
+    previousSlide,
+    toggleBlank,
+    toggleLogo,
+    toggleTimer,
+    showBlank,
+    showLogo,
+    showTimer,
+  ]);
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center px-4 py-8">
-      <Card className="w-full max-w-md bg-white/80 backdrop-blur-sm border-0 shadow-xl">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <div className="p-3 rounded-full bg-red-100">
-              <Shield className="h-8 w-8 text-red-600" />
-            </div>
-          </div>
-          <CardTitle className="text-2xl font-bold text-gray-900">
-            Authentication Required
-          </CardTitle>
-          <CardDescription className="text-gray-600">
-            You need to be logged in to access this page
-          </CardDescription>
-        </CardHeader>
+    <motion.div
+      className="h-[58rem] grid grid-cols-[20rem_3fr_2fr] gap-2 px-6"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+    >
+      {/* Slide Navigator */}
+      <div className="h-full overflow-y-auto">
+        <SlideNavigator />
+      </div>
 
-        <CardContent className="space-y-6">
-          <div className="text-center">
-            <p className="text-gray-600 mb-6">
-              The page you&apos;re trying to access requires authentication.
-              Please sign in to continue to your requested page.
-            </p>
+      {/* Current Slide Preview */}
+      <div className="w-full">
+        <CurrentSlidePreview />
+      </div>
 
-            {redirectTo && redirectTo !== "/presentation" && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-6">
-                <p className="text-sm text-blue-800">
-                  <strong>Requested page:</strong> {redirectTo}
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-3">
-            <Link
-              href={`/auth/login?redirectTo=${encodeURIComponent(redirectTo)}`}
-            >
-              <Button className="w-full py-2 px-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium rounded-md transition-all duration-200">
-                <ArrowRight className="h-4 w-4 mr-2" />
-                Sign In to Continue
-              </Button>
-            </Link>
-
-            <Link href="/auth/signup">
-              <Button
-                variant="outline"
-                className="w-full py-2 px-4 border-2 hover:bg-gray-50 transition-all duration-200"
-              >
-                Create New Account
-              </Button>
-            </Link>
-
-            <Link href="/">
-              <Button
-                variant="ghost"
-                className="w-full py-2 px-4 text-gray-600 hover:text-gray-800 hover:bg-gray-100 transition-all duration-200"
-              >
-                <Home className="h-4 w-4 mr-2" />
-                Back to Home
-              </Button>
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+      {/* Next Slide Preview */}
+      <div className="w-full">
+        <NextSlidePreview />
+      </div>
+    </motion.div>
   );
 }
