@@ -1,3 +1,5 @@
+"use client";
+
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import {
@@ -7,10 +9,26 @@ import {
   Slide,
   ContentItem,
 } from "@/types";
+import { io, Socket } from "socket.io-client";
 
-// 🔥 Broadcast channel for syncing between control panel & projector
+// 🔥 Broadcast channel for syncing between control panel & projector (same-device tabs)
 const channel =
   typeof window !== "undefined" ? new BroadcastChannel("worship-sync") : null;
+
+// 🔥 Socket.IO client (for cross-device sync)
+let socket: Socket | null = null;
+function getSocket() {
+  if (!socket) {
+    socket = io("/", { path: "/api/socketio" });
+    socket.on("connect", () => {
+      console.log("✅ Connected to socket server:", socket?.id);
+    });
+    socket.on("disconnect", () => {
+      console.log("❌ Disconnected from socket server");
+    });
+  }
+  return socket;
+}
 
 // --- AppStore interface ---
 interface AppStore extends AppState {
@@ -31,6 +49,10 @@ interface AppStore extends AppState {
   toggleTimer: () => void;
   saveServicePlan: (plan: ServicePlan) => void;
   loadServicePlans: () => void;
+
+  // 🔥 New: sync slides/events to socket.io server
+  syncSlideToServer: (slide: Slide | null) => void;
+  syncStateToServer: (state: Partial<AppState>) => void;
 }
 
 // --- Zustand store ---
@@ -42,16 +64,13 @@ export const useAppStore = create<AppStore>()(
       currentServicePlan: null,
       currentSlide: null,
       nextSlide: null,
-      content: {
-        songs: {},
-        verses: {},
-        "custom-templates": {},
-      }, // ✅ Correctly typed ContentTree object
+      content: { songs: {}, verses: {}, "custom-templates": {} },
       isProjectorOpen: false,
       showBlank: false,
       showLogo: false,
       showTimer: false,
 
+      // --- Existing methods ---
       setCurrentView: (view) => set({ currentView: view }),
       setContent: (content: ContentTree) => set({ content }),
 
@@ -65,8 +84,7 @@ export const useAppStore = create<AppStore>()(
           isActive: true,
         };
 
-        const { servicePlans } = get();
-        const updatedPlans = servicePlans.map((p) => ({
+        const updatedPlans = get().servicePlans.map((p) => ({
           ...p,
           isActive: false,
         }));
@@ -84,7 +102,6 @@ export const useAppStore = create<AppStore>()(
 
         if (channel)
           channel.postMessage({ currentSlide: null, nextSlide: null });
-
         return plan;
       },
 
@@ -126,10 +143,13 @@ export const useAppStore = create<AppStore>()(
             currentSlide: firstSlide,
             nextSlide: secondSlide,
           });
+
+        // 🔥 Sync to server
+        get().syncSlideToServer(firstSlide);
       },
 
       addToServicePlan: (contentItem) => {
-        const { currentServicePlan } = get();
+        const currentServicePlan = get().currentServicePlan;
         if (!currentServicePlan) return;
 
         const planItem = {
@@ -142,7 +162,6 @@ export const useAppStore = create<AppStore>()(
         };
 
         const newItems = [...currentServicePlan.items, planItem];
-
         const firstSlide = planItem.slides[0] || null;
         const secondSlide = planItem.slides[1] || null;
 
@@ -163,10 +182,13 @@ export const useAppStore = create<AppStore>()(
             currentSlide: firstSlide,
             nextSlide: secondSlide,
           });
+
+        // 🔥 Sync to server
+        get().syncSlideToServer(firstSlide);
       },
 
       removeFromServicePlan: (itemId) => {
-        const { currentServicePlan } = get();
+        const currentServicePlan = get().currentServicePlan;
         if (!currentServicePlan) return;
 
         set({
@@ -180,7 +202,7 @@ export const useAppStore = create<AppStore>()(
       },
 
       reorderServicePlan: (fromIndex, toIndex) => {
-        const { currentServicePlan } = get();
+        const currentServicePlan = get().currentServicePlan;
         if (!currentServicePlan) return;
 
         const items = [...currentServicePlan.items];
@@ -198,10 +220,11 @@ export const useAppStore = create<AppStore>()(
       setCurrentSlide: (slide) => {
         set({ currentSlide: slide });
         if (channel) channel.postMessage({ currentSlide: slide });
+        get().syncSlideToServer(slide);
       },
 
       goToNextSlide: () => {
-        const { currentServicePlan } = get();
+        const currentServicePlan = get().currentServicePlan;
         if (!currentServicePlan) return;
 
         const allSlides = currentServicePlan.items.flatMap(
@@ -224,11 +247,12 @@ export const useAppStore = create<AppStore>()(
           });
 
           if (channel) channel.postMessage({ currentSlide, nextSlide });
+          get().syncSlideToServer(currentSlide);
         }
       },
 
       previousSlide: () => {
-        const { currentServicePlan } = get();
+        const currentServicePlan = get().currentServicePlan;
         if (!currentServicePlan) return;
 
         const allSlides = currentServicePlan.items.flatMap(
@@ -251,11 +275,12 @@ export const useAppStore = create<AppStore>()(
           });
 
           if (channel) channel.postMessage({ currentSlide, nextSlide });
+          get().syncSlideToServer(currentSlide);
         }
       },
 
       goToSlide: (slideIndex) => {
-        const { currentServicePlan } = get();
+        const currentServicePlan = get().currentServicePlan;
         if (!currentServicePlan) return;
 
         const allSlides = currentServicePlan.items.flatMap(
@@ -275,13 +300,15 @@ export const useAppStore = create<AppStore>()(
           });
 
           if (channel) channel.postMessage({ currentSlide, nextSlide });
+          get().syncSlideToServer(currentSlide);
         }
       },
 
       toggleProjector: () => {
         const isOpen = get().isProjectorOpen;
-        if (isOpen) set({ isProjectorOpen: false });
-        else {
+        if (isOpen) {
+          set({ isProjectorOpen: false });
+        } else {
           window.open(
             "/projector",
             "projector",
@@ -295,6 +322,7 @@ export const useAppStore = create<AppStore>()(
         set((state) => {
           const showBlank = !state.showBlank;
           if (channel) channel.postMessage({ showBlank });
+          get().syncStateToServer({ showBlank });
           return { showBlank };
         }),
 
@@ -302,6 +330,7 @@ export const useAppStore = create<AppStore>()(
         set((state) => {
           const showLogo = !state.showLogo;
           if (channel) channel.postMessage({ showLogo });
+          get().syncStateToServer({ showLogo });
           return { showLogo };
         }),
 
@@ -309,13 +338,13 @@ export const useAppStore = create<AppStore>()(
         set((state) => {
           const showTimer = !state.showTimer;
           if (channel) channel.postMessage({ showTimer });
+          get().syncStateToServer({ showTimer });
           return { showTimer };
         }),
 
       saveServicePlan: (plan) => {
         const { servicePlans } = get();
         const existingIndex = servicePlans.findIndex((p) => p.id === plan.id);
-
         if (existingIndex >= 0) {
           const updatedPlans = [...servicePlans];
           updatedPlans[existingIndex] = plan;
@@ -327,6 +356,14 @@ export const useAppStore = create<AppStore>()(
 
       loadServicePlans: () => {
         // Zustand persist handles rehydration automatically
+      },
+
+      // --- 🔥 Socket.IO Sync Methods ---
+      syncSlideToServer: (slide) => {
+        getSocket().emit("slide-update", { currentSlide: slide });
+      },
+      syncStateToServer: (state) => {
+        getSocket().emit("state-update", state);
       },
     }),
     {
@@ -344,7 +381,7 @@ export const useAppStore = create<AppStore>()(
   )
 );
 
-// 🔥 Broadcast listener
+// 🔥 Broadcast listener (same-device tabs)
 if (channel) {
   channel.onmessage = (event) => {
     const data = event.data as Partial<AppState>;
