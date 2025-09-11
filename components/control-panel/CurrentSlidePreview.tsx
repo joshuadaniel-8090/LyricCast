@@ -18,9 +18,6 @@ import { useAppStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
-import { io, Socket } from "socket.io-client";
-
-let socket: Socket | null = null;
 
 export default function CurrentSlidePreview() {
   const {
@@ -48,45 +45,14 @@ export default function CurrentSlidePreview() {
   const hasSlides =
     currentServicePlan?.items?.some((item) => item.slides?.length > 0) ?? false;
 
-  // --- Socket.io setup ---
-  useEffect(() => {
-    if (!socket) {
-      socket = io("/", { path: "/api/socketio" });
-
-      socket.on("connect", () => {
-        console.log("✅ Projector connected:", socket?.id);
-      });
-
-      socket.on("remote-command", ({ command }) => {
-        if (command === "next") goToNextSlide();
-        if (command === "prev") previousSlide();
-        if (command === "blank") toggleBlank();
-        if (command === "logo") toggleLogo();
-        if (command === "timer") toggleTimer();
-      });
-    }
-
-    return () => {
-      socket?.off("remote-command");
-    };
-  }, [goToNextSlide, previousSlide, toggleBlank, toggleLogo, toggleTimer]);
-
-  useEffect(() => {
-    if (socket && currentSlide) {
-      socket.emit("slide-update", {
-        id: currentSlide.id,
-        title: currentSlide.title || "",
-        content: currentSlide.content || "",
-      });
-    }
-  }, [currentSlide]);
-
   // --- Editing Handlers ---
   const handleEditStart = () => {
     setEditContent(currentSlide?.content || "");
     setIsEditing(true);
   };
+
   const handleEditSave = () => setIsEditing(false);
+
   const handleEditCancel = () => {
     setIsEditing(false);
     setEditContent("");
