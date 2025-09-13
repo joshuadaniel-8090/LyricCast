@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { ContentItem, ContentTree } from "@/types";
-import { parseMarkdownToSlides, extractTitle } from "./markdown";
+import { parseMarkdownToSlides } from "./markdown";
 
 // Recursively read all .md files from a folder and keep relative paths
 function getMarkdownFiles(folder: string): string[] {
@@ -37,6 +37,7 @@ function buildTree(
 
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i];
+
       if (i === parts.length - 1) {
         // This is a file
         const fullPath = path.join(
@@ -47,16 +48,26 @@ function buildTree(
           ...parts
         );
         const text = fs.readFileSync(fullPath, "utf-8");
-        const title = extractTitle(text);
-        const slides = parseMarkdownToSlides(text);
+
+        // ✅ Use filename as title instead of "# heading"
+        const fileName = path.basename(part, ".md");
+
+        // ✅ Parse slides but remove top-level heading if exists
+        let cleanedText = text;
+        const lines = text.split("\n");
+        if (lines[0].startsWith("#")) {
+          cleanedText = lines.slice(1).join("\n").trim();
+        }
+
+        const slides = parseMarkdownToSlides(cleanedText);
 
         if (!current.files) current.files = [];
         current.files.push({
           id: `${type}-${file.replace(/\//g, "-")}`,
-          title,
+          title: fileName, // ✅ from filename
           type,
           filename: file,
-          content: text,
+          content: cleanedText, // ✅ cleaned (no "# heading")
           slides,
         });
       } else {

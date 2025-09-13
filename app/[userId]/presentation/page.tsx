@@ -59,7 +59,9 @@ export default async function PresentationPage() {
       </main>
 
       {/* Dock */}
-      <Dock />
+      <div className="fixed bottom-6 left-[-5rem] transform -translate-x-1/2 z-50">
+        <Dock />
+      </div>
     </div>
   );
 }

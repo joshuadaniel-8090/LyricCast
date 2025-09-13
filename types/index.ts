@@ -41,6 +41,7 @@ export interface ServicePlan {
 }
 
 export interface ServicePlanItem {
+  fileName: any;
   id: string;
   contentId: string;
   title: string;

@@ -171,10 +171,20 @@ export default function FileNavigation() {
     if (currentServicePlan) {
       addToServicePlan(item);
 
-      // ✅ Show toast only for songs
+      // ✅ Show toast for each type
       if (item.type === "song") {
         toast({
           title: "Song Added 🎵",
+          description: `${item.title} has been added to the plan.`,
+        });
+      } else if (item.type === "verse") {
+        toast({
+          title: "Verse Added 📖",
+          description: `${item.title} has been added to the plan.`,
+        });
+      } else if (item.type === "custom-template") {
+        toast({
+          title: "Template Added 📑",
           description: `${item.title} has been added to the plan.`,
         });
       }
@@ -199,8 +209,12 @@ export default function FileNavigation() {
 
   useEffect(() => {
     if (searchQuery) {
+      // Automatically expand all parent folders of matched items
       setExpandedFolders(new Set(newExpanded));
+
+      // Scroll to the first matched item
       if (firstMatchRef.current) {
+        // Expand all parent folders in the DOM (already in expandedFolders)
         firstMatchRef.current.scrollIntoView({
           behavior: "smooth",
           block: "center",
@@ -218,53 +232,70 @@ export default function FileNavigation() {
 
   return (
     <motion.div
-      className="h-[58rem] grid grid-cols-[1fr_1fr_1fr] gap-4 p-6"
+      className="h-[58rem] flex flex-col gap-4 p-6"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
     >
-      {(["songs", "verses", "custom-templates"] as const).map((folderName) => {
-        const items = filteredContent[folderName];
-        if (!items) return null;
+      {/* Search Bar */}
+      <div className="mb-4">
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search songs, verses, templates..."
+          className="w-full p-3 rounded-lg bg-black/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
 
-        const Icon =
-          folderName === "songs"
-            ? Music
-            : folderName === "verses"
-            ? Book
-            : Layout;
-        const colorClass =
-          folderName === "songs"
-            ? "text-blue-400"
-            : folderName === "verses"
-            ? "text-green-400"
-            : "text-purple-400";
+      {/* Content Columns */}
+      <div className="grid grid-cols-[1fr_1fr_1fr] gap-4 flex-1 h-full">
+        {(["songs", "verses", "custom-templates"] as const).map(
+          (folderName) => {
+            const items = filteredContent[folderName];
+            if (!items) return null;
 
-        return (
-          <div
-            key={folderName}
-            className="flex flex-col bg-black/20 rounded-xl p-3 overflow-y-auto"
-            style={{ minHeight: 0 }}
-          >
-            <div className="flex items-center gap-2 mb-2 sticky top-0 z-10 bg-black/30 backdrop-blur-md p-2">
-              <Icon className={colorClass} size={18} />
-              <span className="text-white font-semibold capitalize">
-                {folderName.replace("-", " ")}
-              </span>
-            </div>
+            const Icon =
+              folderName === "songs"
+                ? Music
+                : folderName === "verses"
+                ? Book
+                : Layout;
+            const colorClass =
+              folderName === "songs"
+                ? "text-blue-400"
+                : folderName === "verses"
+                ? "text-green-400"
+                : "text-purple-400";
 
-            <ScrollArea className="flex-1">
-              <FolderRenderer
-                folderName={folderName}
-                items={items}
-                expandedFolders={expandedFolders}
-                toggleFolder={toggleFolder}
-                handleAdd={handleAddToServicePlan}
-                firstMatchRef={firstMatchRef}
-              />
-            </ScrollArea>
-          </div>
-        );
-      })}
+            return (
+              <div
+                key={folderName}
+                className="flex flex-col bg-black/20 rounded-xl p-3"
+                style={{ minHeight: 0 }}
+              >
+                <div className="flex items-center gap-2 mb-2 sticky top-0 z-10 bg-black/30 backdrop-blur-md p-2">
+                  <Icon className={colorClass} size={18} />
+                  <span className="text-white font-semibold capitalize">
+                    {folderName.replace("-", " ")}
+                  </span>
+                </div>
+
+                {/* Make each column independently scrollable */}
+                <ScrollArea className="flex-1 h-[calc(58rem-6rem)]">
+                  <FolderRenderer
+                    folderName={folderName}
+                    items={items}
+                    expandedFolders={expandedFolders}
+                    toggleFolder={toggleFolder}
+                    handleAdd={handleAddToServicePlan}
+                    firstMatchRef={firstMatchRef}
+                  />
+                </ScrollArea>
+              </div>
+            );
+          }
+        )}
+      </div>
     </motion.div>
   );
 }

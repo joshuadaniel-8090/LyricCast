@@ -10,7 +10,7 @@ const dockItems = [
   {
     id: "service-plan",
     icon: ListMusic,
-    label: "Service Plan",
+    label: "Plan",
     view: "service-plan" as const,
   },
 ];

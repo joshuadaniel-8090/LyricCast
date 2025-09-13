@@ -8,25 +8,30 @@ import { io, Socket } from "socket.io-client";
 import { useParams } from "next/navigation";
 
 export default function ProjectorPage() {
-  const { currentSlide, showBlank, showLogo, showTimer, setCurrentSlide } =
-    useAppStore();
+  const {
+    currentSlide,
+    currentServicePlan,
+    showBlank,
+    showLogo,
+    setCurrentSlide,
+  } = useAppStore();
 
   const params = useParams();
-
-  // Narrow userId to string only
-  const rawUserId = params?.userId;
-  const userId = typeof rawUserId === "string" ? rawUserId : undefined;
+  const userId = typeof params?.userId === "string" ? params.userId : undefined;
 
   const [countdown, setCountdown] = useState<{
     minutes: number;
     seconds: number;
   } | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [endOfPresentation, setEndOfPresentation] = useState(false);
   const socketRef = useRef<Socket | null>(null);
 
   // --- Socket connection & slide listener ---
   useEffect(() => {
-    if (!socketRef.current && userId) {
+    if (!userId) return;
+
+    if (!socketRef.current) {
       socketRef.current = io("/", {
         path: "/api/socketio",
         reconnection: true,
@@ -37,14 +42,8 @@ export default function ProjectorPage() {
       });
 
       socketRef.current.on("connect", () => {
-        console.log(
-          "✅ Projector connected to Socket.IO:",
-          socketRef.current?.id
-        );
-
-        // Join user-specific room safely
+        console.log("✅ Projector connected:", socketRef.current?.id);
         socketRef.current?.emit("join-room", { room: userId });
-        console.log("📡 Joined room:", userId);
       });
 
       socketRef.current.on("disconnect", (reason) => {
@@ -55,27 +54,23 @@ export default function ProjectorPage() {
     const attachSlideHandler = () => {
       socketRef.current?.off("slide-update");
       socketRef.current?.on("slide-update", (slideData: any) => {
-        try {
-          const incoming = slideData?.currentSlide ?? slideData;
-          if (!incoming) return;
+        const incoming = slideData?.currentSlide ?? slideData;
+        if (!incoming) return;
 
-          const storeState = useAppStore.getState();
-          if (storeState.currentSlide?.id === incoming?.id) return;
+        const storeState = useAppStore.getState();
+        if (storeState.currentSlide?.id === incoming.id) return;
 
-          console.log("📡 Projector received slide:", incoming);
-          setCurrentSlide(incoming);
-        } catch (err) {
-          console.error("Error handling slide-update:", err);
-        }
+        setCurrentSlide(incoming);
+
+        const allSlides =
+          currentServicePlan?.items.flatMap((item) => item.slides) ?? [];
+        const currentIndex = allSlides.findIndex((s) => s.id === incoming.id);
+        setEndOfPresentation(currentIndex >= allSlides.length - 1);
       });
     };
 
     attachSlideHandler();
-
-    socketRef.current?.on("reconnect", () => {
-      console.log("🔁 Socket reconnected — reattaching handlers");
-      attachSlideHandler();
-    });
+    socketRef.current?.on("reconnect", attachSlideHandler);
 
     return () => {
       socketRef.current?.off("slide-update");
@@ -85,7 +80,7 @@ export default function ProjectorPage() {
       socketRef.current?.disconnect();
       socketRef.current = null;
     };
-  }, [setCurrentSlide, userId]);
+  }, [setCurrentSlide, userId, currentServicePlan]);
 
   // --- Countdown logic ---
   useEffect(() => {
@@ -98,7 +93,6 @@ export default function ProjectorPage() {
 
   useEffect(() => {
     if (!countdown) return;
-
     const timer = setInterval(() => {
       setCountdown((prev) => {
         if (!prev) return null;
@@ -107,11 +101,10 @@ export default function ProjectorPage() {
         return null;
       });
     }, 1000);
-
     return () => clearInterval(timer);
   }, [countdown]);
 
-  // --- Fullscreen handling ---
+  // --- Fullscreen ---
   const enterFullscreen = async () => {
     try {
       if (document.documentElement.requestFullscreen) {
@@ -134,32 +127,80 @@ export default function ProjectorPage() {
     return () => window.removeEventListener("keydown", handleKeyPress);
   }, []);
 
-  // --- Slide rendering ---
+  // --- Render Markdown-style headings ---
+  const renderMarkdownText = (text: string) => {
+    return text.split("\n").map((line, idx) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("### ")) {
+        return (
+          <h3 key={idx} className="text-4xl font-semibold text-white my-2">
+            {trimmed.replace(/^### /, "")}
+          </h3>
+        );
+      }
+      if (trimmed.startsWith("## ")) {
+        return (
+          <h2 key={idx} className="text-5xl font-semibold text-white my-2">
+            {trimmed.replace(/^## /, "")}
+          </h2>
+        );
+      }
+      if (trimmed.startsWith("# ")) {
+        return (
+          <h1 key={idx} className="text-6xl font-bold text-white my-2">
+            {trimmed.replace(/^# /, "")}
+          </h1>
+        );
+      }
+      if (trimmed === "___") {
+        return <div key={idx} className="h-10"></div>; // blank line
+      }
+      return (
+        <p key={idx} className="text-5xl text-white my-3">
+          {line}
+        </p>
+      );
+    });
+  };
+
+  // --- Slide content renderer ---
   const getSlideContent = () => {
-    if (showBlank) {
+    if (endOfPresentation)
       return (
         <motion.div
-          key="blank"
+          key="end"
+          className="w-full h-full bg-black flex items-center justify-center"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.5 }}
+        >
+          <p className="text-white text-6xl font-bold text-center">
+            End of Presentation
+          </p>
+        </motion.div>
+      );
+
+    if (showBlank)
+      return (
+        <motion.div
+          key="blank"
           className="w-full h-full bg-black flex items-center justify-center"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
         >
           <Square size={64} className="text-gray-800 opacity-20" />
         </motion.div>
       );
-    }
 
-    if (showLogo) {
+    if (showLogo)
       return (
         <motion.div
           key="logo"
+          className="w-full h-full bg-black flex items-center justify-center"
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.8 }}
-          transition={{ duration: 0.5 }}
-          className="w-full h-full bg-black flex items-center justify-center"
         >
           <div className="text-center">
             <Crown size={120} className="text-yellow-400 mx-auto mb-8" />
@@ -167,32 +208,28 @@ export default function ProjectorPage() {
           </div>
         </motion.div>
       );
-    }
 
-    if (!currentSlide) {
+    if (!currentSlide)
       return (
         <motion.div
-          key="no-slide"
+          key="noslide"
+          className="w-full h-full bg-black flex items-center justify-center"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.5 }}
-          className="w-full h-full bg-black flex items-center justify-center"
         >
           <p className="text-white text-2xl opacity-50">No slide selected</p>
         </motion.div>
       );
-    }
 
-    if (currentSlide.type === "image" && currentSlide.imageUrl) {
+    if (currentSlide.type === "image" && currentSlide.imageUrl)
       return (
         <motion.div
-          key={currentSlide.id}
+          key="image"
+          className="w-full h-full bg-black flex items-center justify-center"
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 1.05 }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
-          className="w-full h-full bg-black flex items-center justify-center"
         >
           <img
             src={currentSlide.imageUrl}
@@ -201,17 +238,15 @@ export default function ProjectorPage() {
           />
         </motion.div>
       );
-    }
 
-    if (currentSlide.type === "video" && currentSlide.videoUrl) {
+    if (currentSlide.type === "video" && currentSlide.videoUrl)
       return (
         <motion.div
-          key={currentSlide.id}
+          key="video"
+          className="w-full h-full bg-black"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.6 }}
-          className="w-full h-full bg-black"
         >
           <video
             src={currentSlide.videoUrl}
@@ -222,17 +257,15 @@ export default function ProjectorPage() {
           />
         </motion.div>
       );
-    }
 
-    if (currentSlide.type === "countdown") {
+    if (currentSlide.type === "countdown")
       return (
         <motion.div
           key="countdown"
+          className="w-full h-full bg-black flex items-center justify-center"
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.8 }}
-          transition={{ duration: 0.5 }}
-          className="w-full h-full bg-black flex items-center justify-center"
         >
           <div className="text-center">
             <Timer size={120} className="text-blue-400 mx-auto mb-12" />
@@ -251,26 +284,25 @@ export default function ProjectorPage() {
           </div>
         </motion.div>
       );
-    }
 
-    // Text slide
+    // Default: text slide
     return (
       <motion.div
-        key={currentSlide.id}
-        initial={{ opacity: 0, y: 50 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -50 }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
+        key={`text-${currentSlide.id}`}
         className="w-full h-full bg-black flex items-center justify-center p-16"
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -30 }}
+        transition={{ duration: 0.35, ease: "easeOut" }}
       >
         <div className="text-center max-w-6xl">
           <motion.div
-            className="text-white text-6xl leading-relaxed font-light whitespace-pre-wrap"
-            initial={{ opacity: 0, scale: 0.9 }}
+            className="whitespace-pre-wrap leading-relaxed"
+            initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
+            transition={{ duration: 0.4, delay: 0.1, ease: "easeOut" }}
           >
-            {currentSlide.content}
+            {currentSlide.content && renderMarkdownText(currentSlide.content)}
           </motion.div>
         </div>
       </motion.div>
@@ -291,7 +323,6 @@ export default function ProjectorPage() {
           </button>
         </div>
       )}
-
       <AnimatePresence mode="wait">{getSlideContent()}</AnimatePresence>
     </div>
   );

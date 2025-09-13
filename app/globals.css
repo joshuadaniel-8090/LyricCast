@@ -16,6 +16,16 @@
   }
 }
 
+/* Vijaya Font Setup */
+/* globals.css */
+.slide-text {
+  font-family: 'Vijaya', serif;
+  font-style: normal;
+  font-size: 2.5rem;       /* ≈ Tailwind text-4xl */
+  line-height: 1.2;        /* taller lines for readability */
+  letter-spacing: 0px;   /* optional: gives breathing room */
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -44,6 +54,7 @@
     --chart-5: 27 87% 67%;
     --radius: 0.5rem;
   }
+
   .dark {
     --background: 0 0% 3.9%;
     --foreground: 0 0% 98%;
@@ -84,11 +95,11 @@
 /* Slide in from right */
 @keyframes slideIn {
   from {
-    transform: translateY(120%); /* completely off-screen to the right */
+    transform: translateY(120%); /* completely off-screen */
     opacity: 0;
   }
   to {
-    transform: translateX(0); /* normal position in viewport */
+    transform: translateX(0); /* normal position */
     opacity: 1;
   }
 }
@@ -96,11 +107,11 @@
 /* Slide out to bottom */
 @keyframes slideOut {
   from {
-    transform: translateX(0); /* start at current position */
+    transform: translateX(0);
     opacity: 1;
   }
   to {
-    transform: translateY(120%); /* move downward out of viewport */
+    transform: translateY(120%);
     opacity: 0;
   }
 }
@@ -111,4 +122,15 @@
 
 .animate-slideOut {
   animation: slideOut 0.25s ease-in forwards;
+}
+
+/* Global Italic + Vijaya Font */
+html,
+body {
+  font-style: italic;
+}
+
+.slide-text {
+  font-family: "Vijaya", serif;
+  font-style: italic;
 }

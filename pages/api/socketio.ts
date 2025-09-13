@@ -2,6 +2,11 @@ import type { NextApiRequest } from "next";
 import type { NextApiResponseServerIO } from "@/types/next";
 import { Server as IOServer } from "socket.io";
 
+const roomStates: Record<
+  string,
+  { currentSlide?: any; currentServicePlan?: any }
+> = {};
+
 export default function handler(
   req: NextApiRequest,
   res: NextApiResponseServerIO
@@ -11,10 +16,7 @@ export default function handler(
 
     const io = new IOServer(res.socket.server, {
       path: "/api/socketio",
-      cors: {
-        origin: "*",
-        methods: ["GET", "POST"],
-      },
+      cors: { origin: "*", methods: ["GET", "POST"] },
     });
 
     res.socket.server.io = io;
@@ -30,6 +32,19 @@ export default function handler(
           roomId = room;
           socket.join(room);
           console.log(`📌 Client ${socket.id} joined room: ${roomId}`);
+
+          // Send the latest slide to the new client
+          if (roomStates[room]?.currentSlide) {
+            socket.emit("slide-update", roomStates[room].currentSlide);
+          }
+
+          // Optional: send currentServicePlan or other state
+          if (roomStates[room]?.currentServicePlan) {
+            socket.emit(
+              "service-plan-update",
+              roomStates[room].currentServicePlan
+            );
+          }
         }
       });
 
@@ -37,9 +52,10 @@ export default function handler(
         console.log(`❌ Client disconnected: ${socket.id}, reason: ${reason}`);
       });
 
-      // Forward events to the room only
+      // Forward slide updates to the room and save state
       socket.on("slide-update", (data) => {
         if (roomId) {
+          roomStates[roomId] = { ...roomStates[roomId], currentSlide: data };
           socket.to(roomId).emit("slide-update", data);
         }
       });
@@ -65,5 +81,5 @@ export default function handler(
     });
   }
 
-  res.end(); // ✅ works now because we extended NextApiResponse
+  res.end();
 }

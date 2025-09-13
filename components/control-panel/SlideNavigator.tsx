@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { ChevronRight, Music, Book, Layout, GripVertical } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { ScrollArea } from "@/components/ui/scroll-area";
+
 import {
   DndContext,
   closestCenter,
@@ -14,11 +15,13 @@ import {
   KeyboardSensor,
   DragEndEvent,
 } from "@dnd-kit/core";
+
 import {
   SortableContext,
   verticalListSortingStrategy,
   useSortable,
 } from "@dnd-kit/sortable";
+
 import { CSS } from "@dnd-kit/utilities";
 
 const typeIcons = {
@@ -33,15 +36,12 @@ const typeColors = {
   "custom-template": "text-purple-400",
 };
 
-// 🔹 Sortable wrapper for each song
 function SortableItem({
   id,
   children,
-  handle,
 }: {
   id: string;
-  children: React.ReactNode;
-  handle: React.ReactNode;
+  children: (listeners: any) => React.ReactNode; // <-- children is a function
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } =
     useSortable({ id });
@@ -53,12 +53,7 @@ function SortableItem({
 
   return (
     <div ref={setNodeRef} style={style} {...attributes}>
-      <div className="flex items-start gap-2 relative">
-        <div {...listeners} className="cursor-grab active:cursor-grabbing mt-2">
-          {handle}
-        </div>
-        <div className="flex-1">{children}</div>
-      </div>
+      {children(listeners)} {/* pass drag listeners down */}
     </div>
   );
 }
@@ -75,7 +70,6 @@ export default function SlideNavigator() {
     useSensor(KeyboardSensor)
   );
 
-  // Map slides with global indices
   const slidesMap = useMemo(() => {
     if (!currentServicePlan) return [];
     let counter = 0;
@@ -88,7 +82,6 @@ export default function SlideNavigator() {
     });
   }, [currentServicePlan]);
 
-  // Auto-expand the song containing the current slide
   useEffect(() => {
     if (!currentServicePlan || manualExpand) return;
     const currentItem = slidesMap.find((item) =>
@@ -98,32 +91,24 @@ export default function SlideNavigator() {
   }, [currentServicePlan, currentSlideIndex, slidesMap, manualExpand]);
 
   const handleExpand = (id: string) => {
-    if (expandedItem === id) {
-      setExpandedItem(null);
-      setManualExpand(true);
-    } else {
-      setExpandedItem(id);
-      setManualExpand(true);
-    }
+    setExpandedItem(expandedItem === id ? null : id);
+    setManualExpand(true);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
-    if (!currentServicePlan) return; // <- ensure it exists
+    if (!currentServicePlan) return;
 
     const { active, over } = event;
-    if (!over) return;
+    if (!over || active.id === over.id) return;
 
-    if (active.id !== over.id) {
-      const oldIndex = currentServicePlan.items.findIndex(
-        (i) => i.id === active.id
-      );
-      const newIndex = currentServicePlan.items.findIndex(
-        (i) => i.id === over.id
-      );
-      if (oldIndex !== -1 && newIndex !== -1) {
-        reorderServicePlan(oldIndex, newIndex);
-      }
-    }
+    const oldIndex = currentServicePlan.items.findIndex(
+      (i) => i.id === active.id
+    );
+    const newIndex = currentServicePlan.items.findIndex(
+      (i) => i.id === over.id
+    );
+    if (oldIndex !== -1 && newIndex !== -1)
+      reorderServicePlan(oldIndex, newIndex);
   };
 
   return (
@@ -133,7 +118,6 @@ export default function SlideNavigator() {
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.3 }}
     >
-      {/* Header - always visible */}
       <div className="p-4 border-b border-white/10">
         <h3 className="text-lg font-semibold text-white">Slides</h3>
         <p className="text-sm text-gray-400">
@@ -145,7 +129,6 @@ export default function SlideNavigator() {
         </p>
       </div>
 
-      {/* Scrollable slides list or placeholder */}
       <ScrollArea className="flex-1">
         {currentServicePlan && currentServicePlan.items.length > 0 ? (
           <DndContext
@@ -164,72 +147,70 @@ export default function SlideNavigator() {
                   const isExpanded = expandedItem === item.id;
 
                   return (
-                    <SortableItem
-                      key={item.id}
-                      id={item.id}
-                      handle={
-                        <button className="p-1 bg-white/10 hover:bg-white/20 rounded">
-                          <GripVertical size={16} className="text-gray-400" />
-                        </button>
-                      }
-                    >
-                      <div className="space-y-2 w-full">
-                        {/* Song header */}
-                        <button
-                          onClick={() => handleExpand(item.id)}
-                          className="flex items-center gap-2 w-full py-2 px-3 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition relative"
-                        >
-                          <Icon className={`${colorClass}`} size={16} />
-                          <span className="text-white text-sm font-medium truncate">
-                            {item.title}
-                          </span>
-                          <ChevronRight
-                            className={`text-gray-500 ml-auto transition-transform ${
-                              isExpanded ? "rotate-90" : ""
-                            }`}
-                            size={14}
-                          />
-                        </button>
+                    <SortableItem key={item.id} id={item.id}>
+                      {(listeners) => (
+                        <div className="space-y-2 w-full">
+                          <button
+                            {...listeners} // entire row is draggable
+                            onClick={() => handleExpand(item.id)} // click still expands
+                            className="flex items-center gap-2 w-full py-2 px-3 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition relative cursor-grab active:cursor-grabbing"
+                          >
+                            {/* Type icon */}
+                            <Icon className={`${colorClass}`} size={16} />
 
-                        {/* Slides */}
-                        {isExpanded && (
-                          <div className="space-y-2 ml-2">
-                            {item.slides.map((slide) => {
-                              const isActive =
-                                slide.globalIndex === currentSlideIndex;
-                              return (
-                                <motion.button
-                                  key={slide.id}
-                                  onClick={() => {
-                                    goToSlide(slide.globalIndex);
-                                    setManualExpand(false);
-                                  }}
-                                  className={`w-full text-left p-3 rounded-lg transition-all shadow-sm ${
-                                    isActive
-                                      ? "bg-gradient-to-r from-blue-600/60 to-blue-400/40 border border-blue-400 text-white"
-                                      : "bg-white/5 hover:bg-white/10 text-gray-300 border border-transparent"
-                                  }`}
-                                  whileHover={{ x: 4 }}
-                                  whileTap={{ scale: 0.98 }}
-                                  transition={{ duration: 0.2 }}
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-sm truncate">
-                                      {slide.content
-                                        .split("\n")[0]
-                                        .replace("#", "")
-                                        .trim() || "Slide"}
-                                    </span>
-                                    <span className="text-xs text-gray-400">
-                                      #{slide.globalIndex + 1}
-                                    </span>
-                                  </div>
-                                </motion.button>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
+                            {/* Title */}
+                            <span className="text-white text-sm font-medium truncate">
+                              {item.title}
+                            </span>
+
+                            {/* Expand arrow */}
+                            <ChevronRight
+                              className={`text-gray-500 ml-auto transition-transform ${
+                                isExpanded ? "rotate-90" : ""
+                              }`}
+                              size={14}
+                            />
+                          </button>
+
+                          {isExpanded && (
+                            <div className="space-y-2 ml-2">
+                              {item.slides.map((slide) => {
+                                const isActive =
+                                  slide.globalIndex === currentSlideIndex;
+                                return (
+                                  <motion.button
+                                    key={slide.id}
+                                    onClick={() => {
+                                      goToSlide(slide.globalIndex);
+                                      setManualExpand(false);
+                                    }}
+                                    className={`w-full text-left p-3 rounded-lg transition-all shadow-sm ${
+                                      isActive
+                                        ? "bg-gradient-to-r from-blue-600/60 to-blue-400/40 border border-blue-400 text-white"
+                                        : "bg-white/5 hover:bg-white/10 text-gray-300 border border-transparent"
+                                    }`}
+                                    whileHover={{ x: 4 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    transition={{ duration: 0.2 }}
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-sm truncate">
+                                        {slide.content
+                                          .split("\n")[0]
+                                          .replace("#", "")
+                                          .trim() || "Slide"}
+                                      </span>
+                                      <span className="text-xs text-gray-400">
+                                        #{slide.globalIndex + 1}
+                                      </span>
+                                    </div>
+                                  </motion.button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </SortableItem>
                   );
                 })}

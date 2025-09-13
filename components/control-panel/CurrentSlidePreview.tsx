@@ -44,11 +44,11 @@ export default function CurrentSlidePreview() {
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState("");
   const [showSlideOverview, setShowSlideOverview] = useState(false);
+  const [endOfPresentation, setEndOfPresentation] = useState(false);
 
   const hasSlides =
     currentServicePlan?.items?.some((item) => item.slides?.length > 0) ?? false;
 
-  // --- Editing Handlers ---
   const handleEditStart = () => {
     setEditContent(currentSlide?.content || "");
     setIsEditing(true);
@@ -66,7 +66,6 @@ export default function CurrentSlidePreview() {
     setEditContent("");
   };
 
-  // --- Keyboard shortcut for Overview ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() === "g") {
@@ -77,10 +76,67 @@ export default function CurrentSlidePreview() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // --- Navigate to Projector Page ---
   const goToProjector = () => {
     if (!userId) return;
-    router.push(`/${userId}/projector`);
+    const width = window.screen.width;
+    const height = window.screen.height;
+    window.open(
+      `/${userId}/projector`,
+      "ProjectorWindow",
+      `width=${width},height=${height},left=12,top=12,fullscreen=no`
+    );
+  };
+
+  const handleNextSlide = () => {
+    if (!currentServicePlan || !currentSlide) return;
+    const allSlides = currentServicePlan.items.flatMap((item) => item.slides);
+    const currentIndex = allSlides.findIndex((s) => s.id === currentSlide.id);
+    if (currentIndex < allSlides.length - 1) {
+      goToNextSlide();
+      setEndOfPresentation(false);
+    } else {
+      setEndOfPresentation(true);
+    }
+  };
+
+  // Render content with headings and blank lines
+  const renderContentWithHeadings = (content: string) => {
+    return content.split("\n").map((line, idx) => {
+      const trimmed = line.trim();
+
+      if (trimmed === "___") {
+        return <div key={idx} className="h-6"></div>; // blank line
+      }
+
+      if (trimmed.startsWith("### ")) {
+        return (
+          <h3 key={idx} className="text-white text-xl font-semibold mb-1">
+            {trimmed.replace(/^### /, "")}
+          </h3>
+        );
+      } else if (trimmed.startsWith("## ")) {
+        return (
+          <h2 key={idx} className="text-white text-2xl font-bold mb-1">
+            {trimmed.replace(/^## /, "")}
+          </h2>
+        );
+      } else if (trimmed.startsWith("# ")) {
+        return (
+          <h1 key={idx} className="text-white text-3xl font-extrabold mb-1">
+            {trimmed.replace(/^# /, "")}
+          </h1>
+        );
+      } else {
+        return (
+          <p
+            key={idx}
+            className="text-white text-2xl leading-relaxed whitespace-pre-wrap mb-1 text-center"
+          >
+            {line}
+          </p>
+        );
+      }
+    });
   };
 
   return (
@@ -124,13 +180,6 @@ export default function CurrentSlidePreview() {
               <p className="font-medium">No songs/slides available</p>
             </div>
           </div>
-        ) : !currentSlide ? (
-          <div className="h-full flex items-center justify-center text-gray-400">
-            <div className="text-center">
-              <Monitor size={48} className="mx-auto mb-4 opacity-50" />
-              <p className="font-medium">No slide selected</p>
-            </div>
-          </div>
         ) : (
           <motion.div
             className="flex-1 flex flex-col justify-between"
@@ -139,9 +188,9 @@ export default function CurrentSlidePreview() {
             transition={{ duration: 0.3 }}
           >
             <div className="flex-1 flex flex-col gap-4">
-              <Card className="w-full aspect-video bg-black border-white/20 flex items-center justify-center overflow-hidden">
+              <Card className="w-full aspect-video bg-black border-white/20 flex flex-col items-center justify-center overflow-hidden p-4">
                 {isEditing ? (
-                  <div className="w-full h-full p-4 flex flex-col">
+                  <div className="w-full h-full flex flex-col">
                     <Textarea
                       value={editContent}
                       onChange={(e) => setEditContent(e.target.value)}
@@ -175,6 +224,12 @@ export default function CurrentSlidePreview() {
                     <Crown size={48} className="mx-auto mb-4 text-yellow-400" />
                     <p className="text-yellow-400">Church Logo</p>
                   </div>
+                ) : endOfPresentation ? (
+                  <div className="flex flex-col items-center justify-center w-full h-full text-center">
+                    <p className="text-white text-4xl font-bold">
+                      End of Presentation
+                    </p>
+                  </div>
                 ) : currentSlide?.type === "image" && currentSlide.imageUrl ? (
                   <img
                     src={currentSlide.imageUrl}
@@ -191,11 +246,31 @@ export default function CurrentSlidePreview() {
                     </p>
                   </div>
                 ) : (
-                  <div className="text-white text-2xl leading-relaxed whitespace-pre-wrap text-center max-w-full px-4">
-                    {currentSlide?.content || ""}
+                  <div className="flex flex-col items-center justify-center w-full h-full">
+                    <div className="text-center w-full px-4">
+                      {currentSlide?.content
+                        ? renderContentWithHeadings(currentSlide.content)
+                        : ""}
+                    </div>
                   </div>
                 )}
               </Card>
+
+              {currentSlide?.notes && !endOfPresentation && (
+                <motion.div
+                  className="mt-3 p-2 bg-yellow-600/5 border border-yellow-600/10 rounded-lg w-full text-left"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.1 }}
+                >
+                  <p className="text-yellow-400/75 text-md font-medium mb-1">
+                    Notes:
+                  </p>
+                  <p className="text-white/75 text-lg whitespace-pre-wrap">
+                    {currentSlide.notes}
+                  </p>
+                </motion.div>
+              )}
             </div>
           </motion.div>
         )}
@@ -268,7 +343,7 @@ export default function CurrentSlidePreview() {
           <Button
             size="icon"
             variant="ghost"
-            onClick={goToNextSlide}
+            onClick={handleNextSlide}
             className="w-16 h-16 rounded-full bg-white/10 hover:bg-white/20 text-white"
             disabled={!hasSlides || !currentSlide}
           >
@@ -283,9 +358,9 @@ export default function CurrentSlidePreview() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-gray-900/95 z-50 p-8 overflow-auto grid gap-4"
+              className="fixed inset-0 bg-gray-900/95 z-50 p-8 overflow-auto grid gap-6"
               style={{
-                gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
               }}
             >
               {currentServicePlan.items
@@ -293,18 +368,24 @@ export default function CurrentSlidePreview() {
                 .map((slide, index) => (
                   <div
                     key={slide.id}
-                    className="bg-black/20 rounded-lg cursor-pointer hover:ring-2 hover:ring-white relative p-2 flex flex-col justify-between"
+                    className="bg-black/40 rounded-lg cursor-pointer hover:ring-2 hover:ring-white relative aspect-square flex items-center justify-center p-4"
                     onClick={() => {
                       goToSlide(index);
+                      setEndOfPresentation(false);
                       setShowSlideOverview(false);
                     }}
                   >
-                    <p className="text-white text-sm truncate">
-                      {slide.title || `Slide ${index + 1}`}
-                    </p>
-                    <div className="text-xs text-gray-300 mt-1 h-28 overflow-hidden whitespace-pre-wrap">
-                      {slide.content || "Slide preview"}
-                    </div>
+                    {slide.imageUrl ? (
+                      <img
+                        src={slide.imageUrl}
+                        alt="Slide preview"
+                        className="w-full h-full object-contain rounded-md"
+                      />
+                    ) : (
+                      <div className="text-sm text-center text-white whitespace-pre-wrap">
+                        {slide.content || "Slide preview"}
+                      </div>
+                    )}
                   </div>
                 ))}
             </motion.div>

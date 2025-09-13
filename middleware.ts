@@ -11,7 +11,15 @@ export async function middleware(req: NextRequest) {
     "/auth/signup",
     "/auth/unauthorized",
   ];
-  const isPublicRoute = publicRoutes.includes(req.nextUrl.pathname);
+
+  // Regex patterns for dynamic public routes
+  const publicPatterns = [
+    /^\/[^/]+\/projector$/, // matches /userId/projector
+  ];
+
+  const isPublicRoute =
+    publicRoutes.includes(req.nextUrl.pathname) ||
+    publicPatterns.some((pattern) => pattern.test(req.nextUrl.pathname));
 
   // If it's a public route, allow access
   if (isPublicRoute) {
