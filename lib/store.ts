@@ -168,7 +168,7 @@ export const useAppStore = create<AppStore>()(
         set({
           currentServicePlan: {
             ...currentServicePlan,
-            items: newItems,
+            // items: newItems,
             currentSlideIndex: firstSlide
               ? 0
               : currentServicePlan.currentSlideIndex,
