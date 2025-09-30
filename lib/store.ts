@@ -159,16 +159,18 @@ export const useAppStore = create<AppStore>()(
           type: contentItem.type,
           slides: contentItem.slides,
           order: currentServicePlan.items.length,
+          fileName: contentItem.filename || "",
         };
 
         const newItems = [...currentServicePlan.items, planItem];
+
         const firstSlide = planItem.slides[0] || null;
         const secondSlide = planItem.slides[1] || null;
 
         set({
           currentServicePlan: {
             ...currentServicePlan,
-            // items: newItems,
+            items: newItems, 
             currentSlideIndex: firstSlide
               ? 0
               : currentServicePlan.currentSlideIndex,
