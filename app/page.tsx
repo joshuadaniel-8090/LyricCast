@@ -93,6 +93,11 @@ export default function LandingPage() {
           Professional presentation software for worship services. Manage
           slides, songs, and service plans all in one place.
         </motion.p>
+        <motion.div>
+          <p className="text-gray-500 mb-6">
+            Beta coming soon. Sign up to be notified!
+          </p>
+        </motion.div>
         <motion.div
           className="flex gap-4"
           initial={{ opacity: 0 }}
